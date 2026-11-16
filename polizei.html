@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Landespolizei Bayern</title>
+
+  <!-- Tailwind CSS via CDN (nur für Prototyp) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'], mono: ['JetBrains Mono', 'ui-monospace', 'Consolas', 'monospace'] },
+          colors: {
+            cop: { 50:'#eef4fb', 100:'#d6e4f5', 200:'#b0c9eb', 500:'#2563a8', 600:'#1c4f8f', 700:'#163f73', 800:'#10305a', 900:'#0a2142' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <style type="text/tailwindcss">
+    @layer components {
+      .label  { @apply block text-sm font-semibold text-slate-700 mb-1; }
+      .hint   { @apply mt-1 text-xs text-slate-500; }
+      .input  { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none transition focus:border-cop-500 focus:ring-2 focus:ring-cop-500/25; }
+      .btn    { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed; }
+      .btn-primary   { @apply btn bg-cop-600 text-white hover:bg-cop-700 focus:ring-cop-500; }
+      .btn-secondary { @apply btn bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-cop-500; }
+      .btn-danger    { @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500; }
+      .navlink { @apply flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-300 whitespace-nowrap transition hover:bg-white/10 hover:text-white; }
+      .navlink.active { @apply bg-cop-600 text-white; }
+    }
+  </style>
+  <style>
+    .plate { font-family: 'Arial Narrow', Arial, sans-serif; letter-spacing: .04em; }
+  </style>
+</head>
+
+<body class="bg-slate-100 font-sans text-slate-800 antialiased">
+<div id="app"></div>
+<div id="toasts" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+<script>
+/* =====================================================================
+   LANDESPOLIZEI BAYERN (fiktiv) – Website + Dienstbereich – Frontend-Prototyp
+   Gemeinsame Daten mit dem Bürgerportal (index.html): gleiche localStorage-Schlüssel
+   (np_accounts, np_session, np_characters, np_vehicles, np_licenses, np_businesses, np_applications),
+   daher gilt dieselbe Anmeldung. Beide Dateien müssen vom selben Ursprung geladen werden
+   (z. B. Live Server: http://127.0.0.1:5500/…).
+
+   Aufbau:  1) CONFIG & Stammdaten   2) Store/Auth/DB (→ später Supabase)
+            3) Helfer                4) Ansichten & Tabs   5) Aktionen   6) Init
+   ===================================================================== */
+
+/* ------------------------------------------------------------------
+   1) CONFIG & STAMMDATEN
+   ------------------------------------------------------------------ */
+const CONFIG = {
+  LAND: 'Bayern',                         // Name im Behördentitel: „Landespolizei <LAND>“ (frei änderbar)
+  CITY: 'Saarbrücken',                    // Stadt für Adressen
+  // DEMO-Dienstcodes (später: Rolle/Dienstgrad in Supabase, vergeben von der Leitung)
+  CODE_OFFICER: 'POLIZEI-2026',           // → Dienstgrad Polizeimeister
+  CODE_LEAD:    'POLIZEI-LEITUNG-2026'    // → Dienststellenleiter
+};
+const RANKS = ['Anwärter', 'Polizeimeister', 'Kommissar', 'Hauptkommissar', 'Dienststellenleiter'];
+const RANK_SENIOR = 1;   // ab „Polizeimeister“: Fahndungen, Bußgelder erlassen
+const RANK_PRESS  = 2;   // ab „Kommissar“: Pressestelle (Meldungen veröffentlichen)
+const RANK_LEAD   = 3;   // ab „Hauptkommissar“: Personal, Bewerbungen, Vorgänge löschen
+const STREETS = ['Hauptstraße', 'Marktallee', 'Hafenstraße', 'Marktplatz', 'Industrieweg', 'Gewerbering'];
+const CASE_TYPES = ['Verwarnung', 'Bußgeld', 'Anzeige', 'Verkehrsunfall', 'Sonstiges'];
+// Akten (Tabelle `records`): Berichte, Festnahmen, Asservate/Beschlagnahmen, Vorstrafen
+const REPORT_TYPES = ['Streifenbericht', 'Verkehrsunfall', 'Ermittlungsbericht', 'Einsatznachbereitung', 'Sonstiges'];
+const SENTENCE_TYPES = ['Geldstrafe', 'Freiheitsstrafe', 'Freiheitsstrafe auf Bewährung', 'Fahrverbot / Führerscheinentzug', 'Gemeinnützige Arbeit'];
+const STORAGES = ['Asservatenkammer', 'Beweismittelraum', 'Fahrzeugverwahrstelle'];
+const SEIZE_STATUS = { sichergestellt: { label: 'In Verwahrung', cls: 'bg-amber-100 text-amber-800' }, zurueck: { label: 'Zurückgegeben', cls: 'bg-emerald-100 text-emerald-800' }, eingezogen: { label: 'Eingezogen', cls: 'bg-red-100 text-red-700' } };
+const WARRANT_LEVELS = ['Aufenthaltsermittlung', 'Festnahme', 'Haftbefehl'];
+// Bußgeldkatalog (fiktive RP-Beträge)
+const OFFENSES = [
+  { name: 'Geschwindigkeit bis +20 km/h',            fine: 50,  type: 'Bußgeld' },
+  { name: 'Geschwindigkeit +21 bis +40 km/h',        fine: 120, type: 'Bußgeld' },
+  { name: 'Geschwindigkeit über +40 km/h',           fine: 250, type: 'Bußgeld' },
+  { name: 'Rotlichtverstoß',                         fine: 150, type: 'Bußgeld' },
+  { name: 'Fahren ohne Führerschein',                fine: 500, type: 'Anzeige' },
+  { name: 'Fahrzeug ohne Zulassung / Kennzeichen',   fine: 300, type: 'Bußgeld' },
+  { name: 'Verkehrsgefährdung / absichtliches Rammen (VDM)', fine: 400, type: 'Anzeige' },
+  { name: 'Unfallflucht',                            fine: 600, type: 'Anzeige' },
+  { name: 'Ruhestörung',                             fine: 80,  type: 'Verwarnung' },
+  { name: 'Sachbeschädigung',                        fine: 200, type: 'Anzeige' },
+  { name: 'Widerstand gegen Einsatzkräfte',          fine: 350, type: 'Anzeige' },
+  { name: 'Mitführen von Waffen ohne Erlaubnis',     fine: 800, type: 'Anzeige' }
+];
+
+// Inhalte der öffentlichen Website (fiktiv). Eigene Pressemeldungen kommen aus dem Dienstbereich (Store „press“).
+const SEED_PRESS = [
+  { id: 'S1', ref: 'POL-NS-2026-014', date: '2026-11-13', tag: 'Verkehr', title: 'Schwerpunktkontrolle auf der Hauptstraße: Zahlreiche Verstöße festgestellt',
+    text: 'Am Donnerstagabend haben Einsatzkräfte der Polizeiinspektion Saarbrücken-Mitte auf der Hauptstraße den Verkehr kontrolliert. Dabei wurden mehrere Geschwindigkeitsverstöße sowie Fahrten ohne gültige Zulassung festgestellt und geahndet.\n\nDie Landespolizei kündigt an, die Kontrollen im Stadtgebiet in den kommenden Wochen fortzusetzen. Ziel ist es, die Verkehrssicherheit für alle Verkehrsteilnehmer zu erhöhen.' },
+  { id: 'S2', ref: 'POL-NS-2026-013', date: '2026-11-12', tag: 'Zeugenaufruf', title: 'Raubüberfall am Marktplatz – Zeugen gesucht',
+    text: 'Die Polizei sucht Zeugen eines Raubüberfalls, der sich am Mittwochabend am Marktplatz ereignet hat. Mehrere Personen sollen das Geschehen beobachtet haben.\n\nHinweise nehmen alle Dienststellen, der Notruf 110 sowie die Onlinewache entgegen.' },
+  { id: 'S3', ref: 'POL-NS-2026-012', date: '2026-11-10', tag: 'Allgemein', title: 'Landespolizei Bayern nimmt den Dienst wieder auf',
+    text: 'Nach einer Pause von rund einem Jahr ist die Landespolizei Bayern wieder im Dienst. Neu ist unter anderem die Onlinewache: Anzeigen und Hinweise können ab sofort rund um die Uhr online aufgegeben werden.\n\nInteressierte können sich über den Bereich Karriere für den Polizeidienst bewerben.' },
+  { id: 'S4', ref: 'POL-NS-2026-011', date: '2026-11-09', tag: 'Prävention', title: 'Fahrzeugdiebstahl vorbeugen: Tipps der Polizei',
+    text: 'Fahrzeuge sollten stets abgeschlossen und an gut einsehbaren Orten abgestellt werden. Wer sein Fahrzeug vermisst, meldet dies umgehend der Polizei – am schnellsten über die Onlinewache oder den Notruf.' }
+];
+const DIENSTSTELLEN = [
+  { name: 'Polizeipräsidium Saarbrücken (Hauptwache)', addr: 'Marktallee 1', phone: '555-0200', hours: 'Rund um die Uhr besetzt', note: 'Zentrale Leitstelle, Anzeigenaufnahme, Fundsachen' },
+  { name: 'Polizeiinspektion Saarbrücken-Mitte', addr: 'Marktplatz 3', phone: '555-0210', hours: 'Täglich 06–22 Uhr', note: 'Streifendienst Innenstadt und Altstadt' },
+  { name: 'Hafenwache', addr: 'Hafenstraße 20', phone: '555-0220', hours: 'Mo–Fr 08–18 Uhr', note: 'Hafenviertel und Industriegebiet' },
+  { name: 'Verkehrspolizeistation', addr: 'Industrieweg 1', phone: '555-0230', hours: 'Mo–Sa 07–19 Uhr', note: 'Verkehrsüberwachung, Unfallaufnahme, Kontrollen' },
+  { name: 'Pressestelle', addr: 'Marktallee 1', phone: '555-0240', hours: 'Mo–Fr 09–15 Uhr', note: 'Anfragen von Medien und Presseportal' }
+];
+const PRAEVENTION = [
+  { t: 'Fahrzeugdiebstahl vorbeugen', lead: 'Die meisten Diebstähle sind vermeidbar.', tips: ['Fahrzeug immer abschließen und nie mit laufendem Motor verlassen.', 'In belebten, gut einsehbaren Bereichen parken.', 'Wertvolle Ladung nicht sichtbar im Fahrzeug lassen.', 'Diebstahl sofort über Onlinewache oder Notruf melden – die Fahndung beginnt dann umgehend.'] },
+  { t: 'Verhalten bei Verkehrskontrollen', lead: 'Kontrollen dienen Ihrer Sicherheit.', tips: ['Blaulicht und Anhaltezeichen beachten, Fahrzeug sicher am Fahrbahnrand anhalten.', 'Führerschein und Fahrzeugpapiere bereithalten.', 'Ruhig bleiben und den Anweisungen der Beamten folgen.', 'Beschwerden bitte im Nachgang über die Onlinewache einreichen.'] },
+  { t: 'Notruf richtig absetzen', lead: 'Im Ernstfall zählen Sekunden.', tips: ['Wo ist es passiert? (Straße, Hausnummer, Auffälligkeiten)', 'Was ist passiert? Wie viele Personen sind beteiligt oder verletzt?', 'Wer meldet? Name und Rückrufmöglichkeit nennen.', 'Warten Sie auf Rückfragen und legen Sie nicht eigenständig auf.'] },
+  { t: 'Seriöse Geschäfte erkennen', lead: 'Betrug im Handel kommt vor.', tips: ['Nur bei Betrieben kaufen, die im Gewerberegister der Stadt eingetragen sind.', 'Misstrauisch werden bei auffällig günstigen Angeboten und Vorkasse.', 'Verdächtige Angebote der Polizei melden.'] }
+];
+const TAG_CLS = { Verkehr: 'bg-cop-100 text-cop-800', Zeugenaufruf: 'bg-red-100 text-red-700', 'Prävention': 'bg-emerald-100 text-emerald-800', Allgemein: 'bg-slate-100 text-slate-700' };
+
+
+/* ------------------------------------------------------------------
+   2) STORE / AUTH / DB   (🔌 SUPABASE: DB-Funktionen später durch supabase-Aufrufe ersetzen)
+   ------------------------------------------------------------------ */
+const Store = {
+  get(k, f) { try { const v = JSON.parse(localStorage.getItem('np_' + k)); return v ?? f; } catch { return f; } },
+  set(k, v) { try { localStorage.setItem('np_' + k, JSON.stringify(v)); return true; } catch { toast('Speicher voll.', 'error'); return false; } },
+  del(k) { try { localStorage.removeItem('np_' + k); } catch {} }
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rid = n => Array.from({ length: n }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+
+// identisch zum Bürgerportal, damit dieselben Konten funktionieren
+async function hashPw(salt, pw) {
+  const data = new TextEncoder().encode(salt + '::' + pw);
+  if (window.crypto && crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  let h = 5381; for (const b of data) h = ((h << 5) + h + b) >>> 0;
+  return 'x' + h.toString(16);
+}
+
+const Auth = {
+  account() { const s = Store.get('session', null); return s ? (Store.get('accounts', []).find(a => a.id === s.accountId) || null) : null; },
+  chars() { const a = this.account(); return a ? Store.get('characters', []).filter(c => c.accountId === a.id) : []; },
+  active() { const s = Store.get('session', null); return s && s.charId ? (this.chars().find(c => c.id === s.charId) || null) : null; }
+};
+const rankIdx = r => RANKS.indexOf(r);
+
+// Dienstverhältnis des angemeldeten Kontos (Tabelle `officers`)
+const Cop = {
+  officer() {
+    const a = Auth.account(); if (!a) return null;
+    const o = Store.get('officers', []).find(x => x.accountId === a.id); if (!o) return null;
+    const c = Store.get('characters', []).find(x => x.id === o.charId); if (!c) return null;   // Charakter gelöscht → kein Zugang
+    return { ...o, char: c, name: `${c.first} ${c.last}` };
+  },
+  need(min = 0) {
+    const o = this.officer();
+    if (!o) throw new Error('Kein Zugriff: Dienstzugang erforderlich.');
+    if (rankIdx(o.rank) < min) throw new Error(`Dafür ist mindestens der Dienstgrad „${RANKS[min]}“ nötig.`);
+    return o;
+  }
+};
+
+const DB = {
+  /* ----- Konto / Dienstzugang ----- */
+  async login(username, password) {
+    await sleep(400);
+    const acc = Store.get('accounts', []).find(a => a.username.toLowerCase() === (username || '').trim().toLowerCase());
+    if (!acc || acc.hash !== await hashPw(acc.salt, password || '')) throw new Error('Benutzername oder Passwort ist falsch.');
+    Store.set('session', { accountId: acc.id, charId: null });
+  },
+  async logout() { Store.del('session'); },
+  async activateDuty(charId, code) {                          // 🔌 Tabelle: officers (account_id, char_id, rank, badge)
+    const acc = Auth.account(); if (!acc) throw new Error('Bitte anmelden.');
+    if ((acc.status || 'approved') !== 'approved') throw new Error('Ihr Konto wurde noch nicht von der Verwaltung freigeschaltet.');
+    const ch = Auth.chars().find(c => c.id === charId); if (!ch) throw new Error('Bitte wählen Sie einen Ihrer Charaktere als Dienstcharakter.');
+    const c = (code || '').trim().toUpperCase();
+    const rank = c === CONFIG.CODE_LEAD ? 'Dienststellenleiter' : c === CONFIG.CODE_OFFICER ? 'Polizeimeister' : null;
+    if (!rank) throw new Error('Der Dienstcode ist ungültig.');
+    const list = Store.get('officers', []);
+    if (list.some(o => o.accountId === acc.id)) throw new Error('Für dieses Konto besteht bereits ein Dienstzugang.');
+    list.push({ accountId: acc.id, charId: ch.id, rank, badge: this._badge(list), since: new Date().toISOString() });
+    Store.set('officers', list);
+  },
+  _badge(list) { let b; do { b = 'PD-' + (Math.floor(Math.random() * 9000) + 1000); } while (list.some(o => o.badge === b)); return b; },
+
+  /* ----- Register-Daten (nur lesen; gehören dem Bürgerportal) ----- */
+  async getCharacters() { Cop.need(); return Store.get('characters', []); },
+  async getVehicles()   { Cop.need(); return Store.get('vehicles', []); },
+  async getLicenses()   { Cop.need(); return Store.get('licenses', {}); },
+  async getBusinesses() { Cop.need(); return Store.get('businesses', []); },
+
+  /* ----- Vorgänge / Bußgelder ----- 🔌 Tabelle: cases */
+  async getCases() { Cop.need(); return Store.get('cases', []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async addCase(d) {
+    const me = Cop.need(); await sleep(300);
+    const ch = Store.get('characters', []).find(c => c.id === d.charId); if (!ch) throw new Error('Bitte wählen Sie eine Person aus dem Register.');
+    const fine = Math.max(0, Math.round(+d.fine || 0));
+    const x = { id: 'V-' + rid(6), type: d.type, charId: ch.id, charName: `${ch.first} ${ch.last}`, citizenId: ch.citizenId, plate: d.plate || '', offense: d.offense || '',
+                text: d.text, fine, status: fine > 0 ? 'offen' : 'erfasst', by: `${me.rank} ${me.name}`, byAccount: me.accountId, badge: me.badge, createdAt: new Date().toISOString() };
+    const l = Store.get('cases', []); l.push(x); Store.set('cases', l); return x;
+  },
+  async setCaseStatus(id, status) {
+    Cop.need(status === 'erlassen' ? RANK_SENIOR : 0);
+    const l = Store.get('cases', []), x = l.find(c => c.id === id); if (!x) throw new Error('Vorgang nicht gefunden.');
+    x.status = status; Store.set('cases', l);
+  },
+  async removeCase(id) { Cop.need(RANK_LEAD); Store.set('cases', Store.get('cases', []).filter(c => c.id !== id)); },
+
+  /* ----- Fahndung ----- 🔌 Tabelle: warrants; Fahrzeugfahndung = vehicles.status 'gestohlen' (wie im Bürgerportal) */
+  async getWarrants() { Cop.need(); return Store.get('warrants', []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async addWarrant(d) {
+    const me = Cop.need(RANK_SENIOR);
+    const ch = Store.get('characters', []).find(c => c.id === d.charId); if (!ch) throw new Error('Bitte wählen Sie eine Person aus dem Register.');
+    const l = Store.get('warrants', []);
+    if (l.some(w => w.charId === ch.id && w.active)) throw new Error('Diese Person ist bereits zur Fahndung ausgeschrieben.');
+    l.push({ id: 'F-' + rid(5), charId: ch.id, charName: `${ch.first} ${ch.last}`, citizenId: ch.citizenId, level: d.level, reason: d.reason, public: !!d.public, active: true, by: `${me.rank} ${me.name}`, createdAt: new Date().toISOString() });
+    Store.set('warrants', l);
+  },
+  async closeWarrant(id) {
+    const me = Cop.need(RANK_SENIOR); const l = Store.get('warrants', []), w = l.find(x => x.id === id); if (!w) return;
+    w.active = false; w.closedBy = `${me.rank} ${me.name}`; w.closedAt = new Date().toISOString(); Store.set('warrants', l);
+  },
+  async setVehicleWanted(id, on, reason) {
+    Cop.need(RANK_SENIOR); const l = Store.get('vehicles', []), v = l.find(x => x.id === id); if (!v) throw new Error('Fahrzeug nicht gefunden.');
+    if (on) { v.status = 'gestohlen'; v.caseNo = 'AZ-' + rid(5); v.lastSeen = 'Polizei'; v.wantedReason = reason || ''; }
+    else { v.status = 'ok'; v.caseNo = null; v.lastSeen = null; v.wantedReason = ''; }
+    Store.set('vehicles', l);
+  },
+
+  /* ----- Akten: Berichte, Festnahmen, Asservate, Vorstrafen ----- 🔌 Tabelle: records (kind, char_id, title, text, …) */
+  async getRecords(kind) { Cop.need(); return Store.get('records', []).filter(r => !kind || r.kind === kind).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async addRecord(kind, d) {
+    const me = Cop.need(kind === 'vorstrafe' ? RANK_SENIOR : 0); await sleep(250);
+    const ch = d.charId ? Store.get('characters', []).find(c => c.id === d.charId) : null;
+    if (d.charId && !ch) throw new Error('Person nicht im Register gefunden.');
+    const need = (v, msg) => { if (!String(v || '').trim()) throw new Error(msg); };
+    if (kind === 'bericht') { need(d.title, 'Bitte geben Sie einen Betreff an.'); need(d.text, 'Bitte schreiben Sie den Berichtstext.'); }
+    else if (kind === 'festnahme') { if (!ch) throw new Error('Bitte wählen Sie die festgenommene Person aus dem Register.'); need(d.offense, 'Bitte geben Sie den Tatvorwurf an.'); need(d.text, 'Bitte schildern Sie den Hergang.'); }
+    else if (kind === 'asservat') { need(d.items, 'Bitte nennen Sie die sichergestellten Gegenstände.'); need(d.text, 'Bitte geben Sie den Grund der Beschlagnahme an.'); }
+    else if (kind === 'vorstrafe') { if (!ch) throw new Error('Bitte wählen Sie die verurteilte Person aus dem Register.'); need(d.offense, 'Bitte geben Sie die Straftat an.'); need(d.sentence, 'Bitte wählen Sie die Strafart.'); }
+    else throw new Error('Unbekannte Aktenart.');
+    const pre = { bericht: 'BE', festnahme: 'FN', asservat: 'AS', vorstrafe: 'VS' }[kind];
+    const x = { id: `${pre}-${rid(5)}`, kind, sub: d.sub || '', title: (d.title || '').trim(), text: (d.text || '').trim(), location: d.location || '', offense: (d.offense || '').trim(),
+      items: (d.items || '').trim(), storage: d.storage || '', plate: d.plate || '', sentence: d.sentence || '', sentenceDetail: (d.sentenceDetail || '').trim(), fileNo: (d.fileNo || '').trim(), date: d.date || new Date().toISOString().slice(0, 10),
+      status: kind === 'asservat' ? 'sichergestellt' : 'erfasst', charId: ch ? ch.id : null, charName: ch ? `${ch.first} ${ch.last}` : '', citizenId: ch ? ch.citizenId : '',
+      by: `${me.rank} ${me.name}`, byAccount: me.accountId, badge: me.badge, createdAt: new Date().toISOString() };
+    const l = Store.get('records', []); l.push(x); Store.set('records', l);
+    // Festnahme: bestehende Personenfahndung auf Wunsch beenden (nur ab Polizeimeister)
+    if (kind === 'festnahme' && d.closeWarrant && ch && rankIdx(me.rank) >= RANK_SENIOR) {
+      const w = Store.get('warrants', []); w.forEach(x2 => { if (x2.charId === ch.id && x2.active) { x2.active = false; x2.closedBy = `${me.rank} ${me.name}`; x2.closedAt = new Date().toISOString(); } }); Store.set('warrants', w);
+    }
+    return x;
+  },
+  async setRecordStatus(id, status) {                                  // Asservate: zurückgeben / einziehen
+    Cop.need(RANK_SENIOR); if (!SEIZE_STATUS[status]) throw new Error('Ungültiger Status.');
+    const l = Store.get('records', []), x = l.find(r => r.id === id); if (!x || x.kind !== 'asservat') throw new Error('Asservat nicht gefunden.');
+    x.status = status; Store.set('records', l);
+  },
+  async removeRecord(id) { Cop.need(RANK_LEAD); Store.set('records', Store.get('records', []).filter(r => r.id !== id)); },
+
+    /* ----- Onlinewache-Eingänge ----- 🔌 Tabelle: tips (no, type, location, text, name, status, notes[]) */
+  async getTips() { Cop.need(); return Store.get('tips', []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async setTipStatus(no, status) {
+    Cop.need(); const l = Store.get('tips', []), t = l.find(x => x.no === no); if (!t) throw new Error('Eingang nicht gefunden.');
+    t.status = status; Store.set('tips', l);
+  },
+  async addTipNote(no, text, pub) {
+    const me = Cop.need(); const l = Store.get('tips', []), t = l.find(x => x.no === no); if (!t) throw new Error('Eingang nicht gefunden.');
+    t.notes = [...(t.notes || []), { text, public: !!pub, by: `${me.rank} ${me.name}`, at: new Date().toISOString() }]; Store.set('tips', l);
+  },
+
+  /* ----- Pressestelle ----- 🔌 Tabelle: press_releases */
+  async getPress() { Cop.need(); return Public.getPress(); },
+  async addPress(d) {
+    const me = Cop.need(RANK_PRESS); const l = Store.get('press', []);
+    l.unshift({ id: 'P-' + rid(5), ref: `POL-NS-${new Date().getFullYear()}-${String(l.length + 100).padStart(3, '0')}`, date: new Date().toISOString().slice(0, 10), tag: d.tag, title: d.title, text: d.text, custom: true, by: `${me.rank} ${me.name}` });
+    Store.set('press', l);
+  },
+  async removePress(id) { Cop.need(RANK_PRESS); Store.set('press', Store.get('press', []).filter(p => p.id !== id)); },
+
+
+  /* ----- Personal & Bewerbungen ----- */
+  async getOfficers() {
+    Cop.need(); const chars = Store.get('characters', []);
+    return Store.get('officers', []).map(o => { const c = chars.find(x => x.id === o.charId); return c ? { ...o, char: c, name: `${c.first} ${c.last}` } : null; })
+      .filter(Boolean).sort((a, b) => rankIdx(b.rank) - rankIdx(a.rank) || a.name.localeCompare(b.name, 'de'));
+  },
+  async setRank(accountId, rank) {
+    const me = Cop.need(RANK_LEAD); if (!RANKS.includes(rank)) throw new Error('Ungültiger Dienstgrad.');
+    if (accountId === me.accountId) throw new Error('Den eigenen Dienstgrad können Sie nicht ändern.');
+    const l = Store.get('officers', []); l.find(o => o.accountId === accountId).rank = rank; Store.set('officers', l);
+  },
+  async removeOfficer(accountId) {
+    const me = Cop.need(RANK_LEAD); if (accountId === me.accountId) throw new Error('Sie können sich nicht selbst entlassen.');
+    Store.set('officers', Store.get('officers', []).filter(o => o.accountId !== accountId));
+  },
+  async getMyPoliceApplications() { const a = Auth.account(); return a ? Store.get('applications', []).filter(x => x.accountId === a.id && x.faction === 'polizei') : []; },
+  async getPoliceApplications() { Cop.need(RANK_LEAD); return Store.get('applications', []).filter(a => a.faction === 'polizei').sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async decideApplication(no, status) {
+    const me = Cop.need(RANK_LEAD); const l = Store.get('applications', []), a = l.find(x => x.appNo === no); if (!a) throw new Error('Bewerbung nicht gefunden.');
+    if (status === 'angenommen') {
+      const ch = Store.get('characters', []).find(c => c.id === a.charId); if (!ch) throw new Error('Der Charakter der Bewerbung existiert nicht mehr.');
+      const off = Store.get('officers', []);
+      if (!off.some(o => o.accountId === a.accountId)) { off.push({ accountId: a.accountId, charId: ch.id, rank: 'Anwärter', badge: this._badge(off), since: new Date().toISOString() }); Store.set('officers', off); }
+    }
+    a.status = status; a.decidedBy = `${me.rank} ${me.name}`; Store.set('applications', l);
+  }
+};
+
+/* Öffentliche Schnittstelle der Website – ohne Anmeldung nutzbar
+   🔌 SUPABASE: später als RLS-geschützte Views/Policies (anon darf nur veröffentlichte Meldungen lesen und Tips einfügen) */
+const Public = {
+  async getPress() { return [...Store.get('press', []), ...SEED_PRESS].sort((a, b) => b.date.localeCompare(a.date)); },
+  async getPublicWarrants() {
+    const chars = Store.get('characters', []);
+    return Store.get('warrants', []).filter(w => w.active && w.public).map(w => { const c = chars.find(x => x.id === w.charId); return { ...w, photo: c && c.photo, age: c && c.birth ? ageFrom(c.birth) : null, district: c && c.district }; });
+  },
+  async submitTip(d) {                                              // Onlinewache
+    await sleep(500);
+    const anon = !!d.anonymous && d.type === 'Hinweis geben';
+    if (!d.location) throw new Error('Bitte geben Sie einen Ort an.');
+    if ((d.text || '').trim().length < 20) throw new Error('Bitte beschreiben Sie den Sachverhalt etwas genauer (mind. 20 Zeichen).');
+    if (!anon && !(d.name || '').trim()) throw new Error('Bitte geben Sie den Namen Ihrer Spielfigur an.');
+    const acc = Auth.account(), ch = Auth.active();
+    const t = { no: `OW-${new Date().getFullYear()}-${rid(5)}`, type: d.type, location: d.location, when: (d.when || '').trim(), plate: (d.plate || '').trim(), text: d.text.trim(),
+                name: anon ? '' : d.name.trim(), discord: (d.discord || '').trim(), anonymous: anon, accountId: acc ? acc.id : null, charId: ch ? ch.id : null, status: 'eingegangen', notes: [], createdAt: new Date().toISOString() };
+    const l = Store.get('tips', []); l.push(t); Store.set('tips', l); return t.no;
+  },
+  async getTip(no) { const t = Store.get('tips', []).find(x => x.no === (no || '').trim().toUpperCase()); return t ? { no: t.no, type: t.type, status: t.status, createdAt: t.createdAt, notes: (t.notes || []).filter(n => n.public) } : null; }
+};
+
+
+/* ------------------------------------------------------------------
+   3) HELFER
+   ------------------------------------------------------------------ */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const fmtDate = iso => new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const fmtDT = iso => new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+const ageFrom = iso => { const d = new Date(iso), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a; };
+const euro = n => n.toLocaleString('de-DE') + ' €';
+const charName = c => `${c.first} ${c.last}`;
+const charOpt = c => `${charName(c)} (${c.citizenId})`;
+
+function toast(msg, type = 'info') {
+  const col = { info: 'bg-slate-800', success: 'bg-emerald-600', error: 'bg-red-600' }[type];
+  const el = document.createElement('div'); el.className = `${col} text-white text-sm font-semibold px-4 py-3 rounded-lg shadow-lg`; el.textContent = msg;
+  $('#toasts').appendChild(el); setTimeout(() => el.remove(), 3800);
+}
+const C = { ok: 'bg-emerald-100 text-emerald-800', warn: 'bg-amber-100 text-amber-800', bad: 'bg-red-100 text-red-700', info: 'bg-cop-100 text-cop-800' };
+const badge = (t, c = 'bg-slate-100 text-slate-700') => `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${c}">${t}</span>`;
+const pageTitle = (t, s) => `<div class="mb-6"><h1 class="text-2xl font-extrabold text-slate-900">${t}</h1>${s ? `<p class="mt-1 text-sm text-slate-500">${s}</p>` : ''}</div>`;
+const card = (inner, cls = '') => `<div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm ${cls}">${inner}</div>`;
+const kv = (k, v) => `<div><dt class="text-xs uppercase tracking-wide text-slate-500">${k}</dt><dd class="font-semibold text-slate-800">${v}</dd></div>`;
+const empty = m => `<div class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">${m}</div>`;
+const plateHTML = p => { const [pre, ...rest] = String(p).split(' '); return `<span class="plate inline-flex h-10 overflow-hidden rounded border-2 border-slate-900 bg-white align-middle"><span class="flex w-6 items-center justify-center bg-blue-700 text-[9px] font-bold text-white">D</span><span class="flex items-center px-2 text-xl font-bold text-slate-900">${esc(pre)} ${esc(rest.join(' '))}</span></span>`; };
+const miniCard = c => `<div class="rounded-xl bg-gradient-to-br from-slate-900 via-cop-800 to-cop-600 p-4 text-white shadow">
+  <div class="flex gap-3"><div class="grid h-24 w-20 shrink-0 place-items-center overflow-hidden rounded-md border border-white/40 bg-slate-800">${c.photo ? `<img src="${esc(c.photo)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : '<span class="px-1 text-center text-xs text-white/60">Kein Foto</span>'}</div>
+  <div class="min-w-0 text-sm"><b class="block truncate text-lg">${esc(c.last)}, ${esc(c.first)}</b><span class="font-mono text-xs text-cop-200">${esc(c.citizenId)}</span>
+    <div class="mt-1 text-xs text-cop-100">geb. ${fmtDate(c.birth)} (${ageFrom(c.birth)} J.) • ${esc(c.district)}</div></div></div></div>`;
+// Eingabe „Name (NS-XXXX)“ oder nur Bürger-ID / Name → Charakter
+function resolveChar(str, chars) {
+  const s = (str || '').trim(); if (!s) return null;
+  const m = s.match(/(NS-[A-Z0-9]{8})/i); if (m) { const c = chars.find(x => x.citizenId === m[1].toUpperCase()); if (c) return c; }
+  return chars.find(c => charName(c).toLowerCase() === s.toLowerCase()) || null;
+}
+const charList = (id, chars) => `<datalist id="${id}">${chars.map(c => `<option value="${esc(charOpt(c))}"></option>`).join('')}</datalist>`;
+const normPlate = raw => { let s = (raw || '').toUpperCase().replace(/[\s\-]/g, ''); if (s.startsWith('NS')) s = s.slice(2); const m = s.match(/^([A-Z]{1,2})(\d{1,4})$/); return m ? `NS ${m[1]} ${m[2]}` : null; };
+// Fiktives Landeswappen (bewusst KEIN echtes Polizeiabzeichen): Schild mit Giebelhaus
+const crest = (cls = 'h-11 w-11') => `<svg viewBox="0 0 64 64" class="${cls}" aria-hidden="true"><path d="M8 5h48v27c0 14-10 22-24 28C18 54 8 46 8 32z" fill="#fff" stroke="#10305a" stroke-width="3"/><path d="M8 5h48v13H8z" fill="#10305a"/><path d="M32 23l13 10h-4v11H23V33h-4z" fill="#2563a8"/><rect x="29" y="37" width="6" height="7" fill="#fff"/></svg>`;
+
+/* ------------------------------------------------------------------
+   4) ANSICHTEN
+   ------------------------------------------------------------------ */
+const app = $('#app');
+
+/* ===================== Anmeldung / Dienstzugang ===================== */
+const brandLine = `<div class="leading-tight"><div class="text-xs font-semibold uppercase tracking-[.2em] text-slate-500">Landespolizei</div><div class="text-xl font-extrabold text-cop-800">${CONFIG.LAND}</div></div>`;
+const fakeNote = '<p class="mt-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800"><b>Hinweis:</b> Fiktive Seite der Brick-Rigs-RP-Community – keine echte Behörde, keine Verbindung zu realen Polizeidienststellen.</p>';
+
+function loginView() {
+  app.innerHTML = `<div class="grid min-h-screen place-items-center bg-slate-100 p-4"><div class="w-full max-w-md">
+    <a href="#/" class="mb-3 inline-block text-sm font-semibold text-cop-700 hover:underline">← Zur Website der Landespolizei ${CONFIG.LAND}</a>
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"><div class="h-1.5 bg-cop-700"></div><div class="p-8">
+      <div class="flex items-center gap-3">${crest('h-12 w-12')}${brandLine}</div>
+      <h1 class="mt-5 text-lg font-bold text-slate-900">Dienstbereich (Intranet)</h1>
+      <p class="mt-1 text-sm text-slate-600">Zugang nur für Beschäftigte der Landespolizei. Melden Sie sich mit Ihrem Konto aus dem Bürgerportal an.</p>
+      <form data-submit="login" class="mt-5 space-y-4"><div><label class="label" for="u">Benutzername</label><input id="u" name="u" class="input" autocomplete="username" required></div>
+        <div><label class="label" for="p">Passwort</label><input id="p" name="p" type="password" class="input" autocomplete="current-password" required></div>
+        <p id="login-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p><button class="btn-primary w-full">Dienstlich anmelden</button></form>
+      <p class="mt-5 text-center text-sm text-slate-500">Noch kein Konto? <a href="index.html" class="font-semibold text-cop-600 underline">Im Bürgerportal registrieren</a></p>${fakeNote}</div></div></div></div>`;
+}
+
+async function dutyView(acc) {
+  const chars = Auth.chars();
+  const apps = await DB.getMyPoliceApplications();
+  const pending = apps.find(a => a.status === 'offen');
+  app.innerHTML = `<div class="grid min-h-screen place-items-center bg-slate-100 p-4"><div class="w-full max-w-lg">
+    <a href="#/" class="mb-3 inline-block text-sm font-semibold text-cop-700 hover:underline">← Zur Website der Landespolizei ${CONFIG.LAND}</a>
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg"><div class="h-1.5 bg-cop-700"></div><div class="p-8">
+      <div class="flex items-center justify-between gap-3"><div class="flex items-center gap-3">${crest('h-12 w-12')}<div><div class="text-xl font-extrabold text-cop-800">Dienstzugang</div><div class="text-sm text-slate-500">Angemeldet als ${esc(acc.username)}</div></div></div><button data-act="logout" class="btn-secondary">Abmelden</button></div>
+      ${(acc.status || 'approved') === 'pending' ? '<p class="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-800"><b>Freischaltung ausstehend.</b> Ihr Konto muss zuerst von der Stadtverwaltung freigeschaltet werden (siehe Bürgerportal).</p>' : ''}
+      ${pending ? `<p class="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Ihre Bewerbung <b class="font-mono">${esc(pending.appNo)}</b> bei der Landespolizei wird noch geprüft. Nach der Annahme erhalten Sie hier automatisch Zugang.</p>` : ''}
+      ${apps.find(a => a.status === 'abgelehnt') && !pending ? '<p class="mt-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">Ihre letzte Bewerbung bei der Landespolizei wurde abgelehnt.</p>' : ''}
+      ${chars.length ? `<form data-submit="duty" class="mt-5 space-y-4"><p class="text-sm text-slate-600">Für Ihr Konto besteht noch kein Dienstzugang. Wählen Sie Ihren Dienstcharakter und geben Sie den Dienstcode ein, den Sie von der Dienststellenleitung erhalten haben.</p>
+        <div><label class="label">Dienstcharakter</label><select name="charId" class="input">${chars.map(c => `<option value="${c.id}">${esc(charOpt(c))}</option>`).join('')}</select></div>
+        <div><label class="label">Dienstcode</label><input name="code" class="input font-mono uppercase" autocomplete="off" required></div>
+        <p class="hint">Demo-Codes: <b>${CONFIG.CODE_OFFICER}</b> (Polizeimeister) oder <b>${CONFIG.CODE_LEAD}</b> (Dienststellenleiter). Später vergibt die Leitung Dienstgrade.</p>
+        <p id="duty-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p><button class="btn-primary w-full">Dienstzugang freischalten</button></form>`
+      : `<p class="mt-5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Sie haben noch keinen Charakter. Erstellen Sie zuerst im <a href="index.html" class="font-semibold text-cop-600 underline">Bürgerportal</a> eine Bürgerkarte.</p>`}
+      <p class="mt-5 text-sm text-slate-500">Noch nicht bei der Polizei? <a href="index.html#/karriere/stellen" class="font-semibold text-cop-600 underline">Jetzt im Bürgerportal bewerben</a></p>${fakeNote}</div></div></div></div>`;
+}
+
+/* ===================== Dienstbereich (Intranet) ===================== */
+/* Tabs: min = benötigter Dienstgrad-Index; VIEWS[id](el, params, me) füllt den Inhalt */
+const TABS = [
+  { id: 'dashboard', label: 'Übersicht', min: 0 },
+  { id: 'person', label: 'Personenabfrage', min: 0 },
+  { id: 'fahrzeug', label: 'Fahrzeugabfrage', min: 0 },
+  { id: 'fahndung', label: 'Fahndung', min: 0 },
+  { id: 'vorgaenge', label: 'Vorgänge & Bußgelder', min: 0 },
+  { id: 'eingaenge', label: 'Onlinewache-Eingänge', min: 0 },
+  { id: 'berichte', label: 'Berichte', min: 0 },
+  { id: 'festnahmen', label: 'Festnahmen', min: 0 },
+  { id: 'asservate', label: 'Asservate', min: 0 },
+  { id: 'vorstrafen', label: 'Vorstrafen', min: 0 },
+  { id: 'personal', label: 'Dienststelle', min: 0 },
+  { id: 'presse', label: 'Pressestelle', min: RANK_PRESS },
+  { id: 'bewerbungen', label: 'Bewerbungen', min: RANK_LEAD },
+  { id: 'katalog', label: 'Bußgeldkatalog', min: 0 }
+];
+
+async function render() {
+  const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
+  const id = parts[0] || 'start', params = parts.slice(1);
+  if (PAGES[id]) return renderPublic(id, params);
+  const tab = TABS.find(t => t.id === id);
+  if (!tab) return renderPublic('start', []);
+
+  const acc = Auth.account();
+  if (!acc) return loginView();
+  const me = Cop.officer();
+  if (!me) return dutyView(acc);
+
+  document.title = `${tab.label} – Dienstbereich – Landespolizei ${CONFIG.LAND}`;
+  const allowed = rankIdx(me.rank) >= tab.min;
+  app.innerHTML = `<div class="min-h-screen lg:grid lg:grid-cols-[16.5rem_1fr]">
+    <aside class="bg-cop-900 text-slate-200 lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
+      <a href="#/" class="flex items-center gap-3 border-b border-white/10 px-4 py-4">${crest('h-10 w-10')}<div class="leading-tight"><div class="text-[11px] font-semibold uppercase tracking-[.2em] text-cop-200">Landespolizei ${esc(CONFIG.LAND)}</div><div class="font-bold text-white">Dienstbereich</div></div></a>
+      <nav class="flex gap-1 overflow-x-auto px-3 py-3 lg:flex-1 lg:flex-col lg:overflow-y-auto">${TABS.filter(t => rankIdx(me.rank) >= t.min).map(t => `<a href="#/${t.id}" class="navlink ${t.id === tab.id ? 'active' : ''}">${t.label}</a>`).join('')}</nav>
+      <div class="hidden border-t border-white/10 p-4 text-sm lg:block"><div class="font-mono text-xs text-cop-200">${esc(me.badge)}</div><div class="font-semibold text-white">${esc(me.rank)} ${esc(me.name)}</div>
+        <div class="mt-3 space-y-1 text-xs text-slate-400"><a href="#/" class="block hover:text-white">Zur Website</a><a href="index.html" class="block hover:text-white">Zum Bürgerportal</a></div></div>
+    </aside>
+    <div class="flex min-h-screen min-w-0 flex-col">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-3">
+        <div class="text-sm text-slate-500">Dienstbereich › <b class="text-slate-800">${tab.label}</b></div>
+        <div class="flex items-center gap-3"><span class="hidden text-sm text-slate-600 sm:inline"><b>${esc(me.rank)}</b> ${esc(me.name)} <span class="font-mono text-xs text-slate-400">${esc(me.badge)}</span></span>
+          <button data-act="logout" class="btn-secondary !py-1.5">Abmelden</button></div></header>
+      <main id="content" class="mx-auto w-full max-w-6xl flex-1 p-4 sm:p-6"></main>
+      <footer class="border-t border-slate-200 bg-white px-6 py-3 text-xs text-slate-500">Fiktives Dienstportal der Brick-Rigs-RP-Community – keine echte Behörde, keine echten Daten.</footer></div></div>`;
+
+  const el = $('#content');
+  if (!allowed) { el.innerHTML = `<div class="rounded-xl bg-red-50 p-8 text-center"><h1 class="text-xl font-extrabold text-red-700">Kein Zugriff</h1><p class="mt-1 text-sm text-red-700">Dieser Bereich erfordert mindestens den Dienstgrad „${RANKS[tab.min]}“.</p></div>`; return; }
+  try { await VIEWS[tab.id](el, params, me); } catch (ex) { el.innerHTML = `<p class="text-red-600">Fehler beim Laden: ${esc(ex.message)}</p>`; }
+}
+
+/* ===================== Öffentliche Website ===================== */
+const PUB_NAV = [['aktuelles', 'Aktuelles'], ['onlinewache', 'Onlinewache'], ['fahndungen', 'Fahndungen & Zeugenaufrufe'], ['praevention', 'Prävention'], ['karriere', 'Karriere'], ['dienststellen', 'Dienststellen'], ['bussgelder', 'Bußgeldkatalog']];
+
+function publicFooter() {
+  const link = (h, t) => `<li><a href="${h}" class="hover:text-white hover:underline">${t}</a></li>`;
+  return `<footer class="mt-16 bg-cop-900 text-cop-100"><div class="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm md:grid-cols-4">
+      <div class="md:col-span-2"><div class="flex items-center gap-3">${crest('h-11 w-11')}<div class="leading-tight"><div class="text-xs font-semibold uppercase tracking-[.2em] text-cop-200">Landespolizei</div><div class="text-xl font-extrabold text-white">${esc(CONFIG.LAND)}</div></div></div>
+        <p class="mt-4 max-w-md text-cop-200">Die Polizei für Stadt und Umland. Notruf 110 – Anzeigen und Hinweise rund um die Uhr über die Onlinewache.</p></div>
+      <div><h2 class="font-semibold text-white">Service</h2><ul class="mt-3 space-y-1.5">${link('#/onlinewache', 'Onlinewache')}${link('#/fahndungen', 'Fahndungen')}${link('#/dienststellen', 'Dienststellen & Kontakt')}${link('#/bussgelder', 'Bußgeldkatalog')}${link('#/karriere', 'Karriere')}</ul></div>
+      <div><h2 class="font-semibold text-white">Rechtliches</h2><ul class="mt-3 space-y-1.5">${link('#/impressum', 'Impressum')}${link('#/datenschutz', 'Datenschutz')}${link('#/barrierefreiheit', 'Barrierefreiheit')}${link('#/dashboard', 'Dienstbereich (Login)')}${link('index.html', 'Bürgerportal Saarbrücken')}</ul></div></div>
+    <div class="border-t border-white/10 bg-amber-100 text-amber-900"><div class="mx-auto max-w-6xl px-4 py-4 text-sm"><b>Hinweis – keine echte Seite:</b> Dies ist eine fiktive Webseite für das Brick-Rigs-Rollenspiel-Projekt „Saarbrücken“. Alle Inhalte, Namen, Dienststellen und Rufnummern sind erfunden. Es besteht keine Verbindung zu realen Polizeibehörden. Bei einem echten Notfall wählen Sie bitte den tatsächlichen Notruf Ihres Landes.</div></div>
+    <div class="bg-cop-900 py-3 text-center text-xs text-cop-200">© ${new Date().getFullYear()} Landespolizei ${esc(CONFIG.LAND)} (fiktiv) • Rollenspiel-Projekt</div></footer>`;
+}
+
+function publicShell(activeId, inner) {
+  const acc = Auth.account(), off = acc && Cop.officer();
+  return `<div class="flex min-h-screen flex-col bg-white">
+    <div class="bg-cop-900 text-sm text-white"><div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-1 px-4 py-2">
+      <p><b>Notruf 110</b> <span class="text-cop-200">– im Spiel per Funk oder im Discord-Kanal #notruf</span></p>
+      <p class="flex gap-5 text-cop-100"><a href="#/dienststellen" class="hover:text-white">Kontakt</a><a href="#/dashboard" class="hover:text-white">${off ? 'Zum Dienstbereich' : 'Dienstbereich'}</a><a href="index.html" class="hover:text-white">Bürgerportal Saarbrücken</a></p></div></div>
+    <header class="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm"><div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <a href="#/" class="flex items-center gap-3" aria-label="Startseite Landespolizei">${crest('h-12 w-12')}<span class="leading-tight"><span class="block text-xs font-semibold uppercase tracking-[.2em] text-slate-500">Landespolizei</span><span class="block text-2xl font-extrabold text-cop-800">${esc(CONFIG.LAND)}</span></span></a>
+      <nav class="flex flex-wrap gap-0.5 text-sm font-semibold lg:ml-auto">${PUB_NAV.map(([id, l]) => `<a href="#/${id}" class="rounded px-3 py-2 ${id === activeId ? 'bg-cop-50 text-cop-800' : 'text-slate-700 hover:bg-slate-100'}">${l}</a>`).join('')}</nav></div></header>
+    <main class="flex-1">${inner}</main>${publicFooter()}</div>`;
+}
+
+async function renderPublic(id, params) {
+  document.title = (id === 'start' ? '' : PAGE_TITLES[id] + ' – ') + `Landespolizei ${CONFIG.LAND}`;
+  let html; try { html = await PAGES[id](params); } catch (ex) { html = `<p class="p-8 text-red-600">Fehler beim Laden: ${esc(ex.message)}</p>`; }
+  app.innerHTML = publicShell(id, html); window.scrollTo(0, 0);
+}
+// Seitenrahmen mit Brotkrumen
+const pubPage = (crumb, title, lead, body) => `<div class="border-b border-slate-200 bg-slate-50"><div class="mx-auto max-w-6xl px-4 py-8"><nav class="text-sm text-slate-500"><a href="#/" class="hover:underline">Startseite</a> › ${crumb}</nav>
+  <h1 class="mt-2 text-3xl font-extrabold text-cop-900">${title}</h1>${lead ? `<p class="mt-2 max-w-3xl text-slate-600">${lead}</p>` : ''}</div></div><div class="mx-auto max-w-6xl px-4 py-10">${body}</div>`;
+const pressCard = p => `<a href="#/aktuelles/${esc(p.id)}" class="group flex flex-col rounded-lg border border-slate-200 bg-white p-5 transition hover:border-cop-500 hover:shadow-md">
+  <div class="flex items-center gap-2 text-xs">${badge(esc(p.tag), TAG_CLS[p.tag] || '')}<span class="text-slate-500">${fmtDate(p.date)}</span></div>
+  <h3 class="mt-2 font-bold text-cop-900 group-hover:underline">${esc(p.title)}</h3><p class="mt-1 line-clamp-3 text-sm text-slate-600">${esc(p.text.split('\n')[0])}</p><span class="mt-3 text-sm font-semibold text-cop-600">Weiterlesen →</span></a>`;
+
+const PAGE_TITLES = { aktuelles: 'Aktuelles', onlinewache: 'Onlinewache', fahndungen: 'Fahndungen & Zeugenaufrufe', praevention: 'Prävention', karriere: 'Karriere', dienststellen: 'Dienststellen & Kontakt', bussgelder: 'Bußgeldkatalog', impressum: 'Impressum', datenschutz: 'Datenschutz', barrierefreiheit: 'Barrierefreiheit' };
+
+const PAGES = {
+  /* ---- Startseite ---- */
+  async start() {
+    const [press, wanted] = await Promise.all([Public.getPress(), Public.getPublicWarrants()]);
+    const tile = (h, t, d) => `<a href="${h}" class="group rounded-lg border border-slate-200 bg-white p-6 shadow-md transition hover:-translate-y-0.5 hover:border-cop-500 hover:shadow-xl"><h2 class="text-lg font-bold text-cop-800">${t}</h2><p class="mt-1 text-sm text-slate-600">${d}</p><span class="mt-3 inline-block text-sm font-semibold text-cop-600 group-hover:underline">Zur Seite →</span></a>`;
+    return `<section class="bg-gradient-to-br from-cop-900 via-cop-800 to-cop-600 text-white"><div class="mx-auto max-w-6xl px-4 pb-24 pt-14">
+        <p class="text-sm font-semibold uppercase tracking-[.2em] text-cop-200">Landespolizei ${esc(CONFIG.LAND)}</p>
+        <h1 class="mt-3 max-w-2xl text-4xl font-extrabold leading-tight md:text-5xl">Wir sind für Ihre Sicherheit da – rund um die Uhr.</h1>
+        <p class="mt-4 max-w-xl text-lg text-cop-100">Aktuelle Meldungen, Onlinewache und Informationen Ihrer Polizei in Saarbrücken und Umgebung.</p>
+        <div class="mt-7 flex flex-wrap gap-3"><a href="#/onlinewache" class="btn bg-white text-cop-800 hover:bg-cop-50">Zur Onlinewache</a><a href="#/dienststellen" class="btn border border-white/40 text-white hover:bg-white/10">Dienststellen & Kontakt</a></div></div></section>
+      <div class="mx-auto -mt-14 grid max-w-6xl gap-4 px-4 sm:grid-cols-2 lg:grid-cols-4">${tile('#/onlinewache', 'Onlinewache', 'Anzeige erstatten oder Hinweis geben – ohne Wartezeit.')}${tile('#/fahndungen', 'Fahndungen', 'Öffentlichkeitsfahndungen und Zeugenaufrufe.')}${tile('#/praevention', 'Prävention', 'Tipps zu Verkehr, Diebstahl und Notruf.')}${tile('#/karriere', 'Karriere', 'Werden Sie Teil der Landespolizei.')}</div>
+      <section class="mx-auto max-w-6xl px-4 pt-14"><div class="flex items-end justify-between"><h2 class="text-2xl font-extrabold text-cop-900">Aktuelle Meldungen</h2><a href="#/aktuelles" class="text-sm font-semibold text-cop-600 hover:underline">Alle Meldungen →</a></div>
+        <div class="mt-5 grid gap-4 md:grid-cols-3">${press.slice(0, 3).map(pressCard).join('')}</div></section>
+      ${wanted.length ? `<section class="mx-auto mt-12 max-w-6xl px-4"><div class="rounded-lg border-l-4 border-red-600 bg-red-50 p-5"><h2 class="font-bold text-red-800">Öffentlichkeitsfahndung</h2><p class="mt-1 text-sm text-red-900">Die Polizei sucht aktuell ${wanted.length} Person${wanted.length > 1 ? 'en' : ''}. <a href="#/fahndungen" class="font-semibold underline">Zur Fahndungsseite</a></p></div></section>` : ''}
+      <section class="mx-auto mt-12 max-w-6xl px-4"><h2 class="text-2xl font-extrabold text-cop-900">So erreichen Sie uns</h2><div class="mt-5 grid gap-4 md:grid-cols-3">
+        <div class="rounded-lg bg-red-700 p-6 text-white"><div class="text-sm font-semibold uppercase tracking-wide text-red-100">Notfall</div><div class="mt-1 text-5xl font-extrabold">110</div><p class="mt-2 text-sm text-red-100">Bei Gefahr, Straftaten und Unfällen mit Verletzten. Im Spiel per Funk oder Discord #notruf.</p></div>
+        <div class="rounded-lg border border-slate-200 p-6"><div class="text-sm font-semibold uppercase tracking-wide text-slate-500">Nicht dringend</div><h3 class="mt-1 text-xl font-bold text-cop-800">Onlinewache</h3><p class="mt-2 text-sm text-slate-600">Anzeigen, Hinweise und Anliegen jederzeit online aufgeben.</p><a href="#/onlinewache" class="mt-3 inline-block text-sm font-semibold text-cop-600 hover:underline">Meldung aufgeben →</a></div>
+        <div class="rounded-lg border border-slate-200 p-6"><div class="text-sm font-semibold uppercase tracking-wide text-slate-500">Hauptwache</div><h3 class="mt-1 text-xl font-bold text-cop-800">555-0200</h3><p class="mt-2 text-sm text-slate-600">Marktallee 1 • rund um die Uhr besetzt.</p><a href="#/dienststellen" class="mt-3 inline-block text-sm font-semibold text-cop-600 hover:underline">Alle Dienststellen →</a></div></div></section>`;
+  },
+
+  /* ---- Aktuelles / Presse ---- */
+  async aktuelles([id]) {
+    const press = await Public.getPress();
+    if (id) {
+      const p = press.find(x => x.id === id);
+      if (!p) return pubPage('<a href="#/aktuelles" class="hover:underline">Aktuelles</a>', 'Meldung nicht gefunden', '', '<a href="#/aktuelles" class="btn-secondary">← Zur Übersicht</a>');
+      return pubPage(`<a href="#/aktuelles" class="hover:underline">Aktuelles</a> › ${esc(p.ref)}`, esc(p.title), `${badge(esc(p.tag), TAG_CLS[p.tag] || '')} <span class="ml-2 text-sm text-slate-500">${fmtDate(p.date)} • ${esc(p.ref)}</span>`,
+        `<article class="max-w-3xl space-y-4 text-lg leading-relaxed text-slate-700">${p.text.split('\n').filter(Boolean).map(x => `<p>${esc(x)}</p>`).join('')}</article>
+         <div class="mt-8 max-w-3xl rounded-lg bg-slate-50 p-5 text-sm text-slate-600"><b>Rückfragen:</b> Pressestelle der Landespolizei ${esc(CONFIG.LAND)}, Tel. 555-0240 (Mo–Fr 09–15 Uhr)</div><a href="#/aktuelles" class="btn-secondary mt-6">← Alle Meldungen</a>`);
+    }
+    return pubPage('Aktuelles', 'Aktuelle Meldungen', 'Pressemitteilungen und Informationen der Landespolizei.', `<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">${press.map(pressCard).join('')}</div>`);
+  },
+
+  /* ---- Onlinewache ---- */
+  async onlinewache([mode, no]) {
+    if (mode === 'eingang') return pubPage('<a href="#/onlinewache" class="hover:underline">Onlinewache</a> › Bestätigung', 'Vielen Dank für Ihre Meldung', '',
+      `<div class="max-w-2xl rounded-lg border-l-4 border-emerald-500 bg-emerald-50 p-6"><p class="text-emerald-900">Ihre Meldung wurde aufgenommen und an die zuständige Dienststelle weitergeleitet.</p><p class="mt-4 text-sm text-slate-600">Ihre Vorgangsnummer:</p><p class="font-mono text-3xl font-bold text-cop-900">${esc(no)}</p><p class="mt-3 text-sm text-slate-600">Bitte notieren Sie sich die Nummer. Damit können Sie den Bearbeitungsstand jederzeit abfragen.</p>
+        <div class="mt-5 flex gap-3"><a href="#/onlinewache/status/${esc(no)}" class="btn-primary">Status ansehen</a><a href="#/onlinewache" class="btn-secondary">Weitere Meldung</a></div></div>`);
+    if (mode === 'status') {
+      const t = await Public.getTip(no), cls = { eingegangen: C.warn, 'in bearbeitung': C.info, abgeschlossen: C.ok }[t && t.status] || '';
+      return pubPage('<a href="#/onlinewache" class="hover:underline">Onlinewache</a> › Status', 'Bearbeitungsstand', '', t ? `<div class="max-w-2xl rounded-lg border border-slate-200 p-6"><p class="font-mono text-2xl font-bold text-cop-900">${esc(t.no)}</p><p class="mt-1 text-sm text-slate-500">${esc(t.type)} • eingegangen am ${fmtDT(t.createdAt)}</p>
+          <p class="mt-4">Status: ${badge(esc(t.status.charAt(0).toUpperCase() + t.status.slice(1)), cls)}</p>
+          ${t.notes.length ? `<h2 class="mt-5 font-bold text-cop-800">Rückmeldungen der Polizei</h2>${t.notes.map(n => `<div class="mt-2 rounded-lg bg-slate-50 p-3 text-sm"><p>${esc(n.text)}</p><p class="mt-1 text-xs text-slate-400">${esc(n.by)} • ${fmtDT(n.at)}</p></div>`).join('')}` : '<p class="mt-4 text-sm text-slate-500">Bisher liegen keine Rückmeldungen vor.</p>'}</div><a href="#/onlinewache" class="btn-secondary mt-5">← Zurück zur Onlinewache</a>`
+        : `<div class="max-w-2xl rounded-lg bg-red-50 p-6 text-red-800">Zu dieser Vorgangsnummer wurde nichts gefunden. Bitte prüfen Sie die Eingabe.</div><a href="#/onlinewache" class="btn-secondary mt-5">← Zurück</a>`);
+    }
+    const ch = Auth.active();
+    return pubPage('Onlinewache', 'Onlinewache', 'Anzeigen erstatten, Hinweise geben oder Anliegen melden – rund um die Uhr.',
+      `<div class="mb-6 max-w-3xl rounded-lg border-l-4 border-red-600 bg-red-50 p-4 text-sm text-red-900"><b>Die Onlinewache ist kein Notruf.</b> Bei Gefahr, laufenden Straftaten oder Verletzten wählen Sie bitte sofort den Notruf <b>110</b> (im Spiel: Funk oder Discord #notruf).</div>
+       <div class="grid gap-8 lg:grid-cols-[1fr_22rem]"><form data-submit="tip" class="space-y-4 rounded-lg border border-slate-200 p-6"><h2 class="text-xl font-bold text-cop-800">Meldung aufgeben</h2>
+        <div class="grid gap-4 sm:grid-cols-2"><div><label class="label">Art der Meldung *</label><select name="type" class="input"><option>Anzeige erstatten</option><option>Hinweis geben</option><option>Verkehrsunfall melden</option><option>Fahrzeug vermisst / gestohlen</option><option>Sonstiges Anliegen</option></select></div>
+          <div><label class="label">Ort *</label><select name="location" class="input">${STREETS.map(s => `<option>${s}</option>`).join('')}<option>Anderer Ort</option></select></div>
+          <div><label class="label">Zeitpunkt</label><input name="when" class="input" placeholder="z. B. heute gegen 21 Uhr" maxlength="60"></div>
+          <div><label class="label">Kennzeichen (falls bekannt)</label><input name="plate" class="input uppercase" placeholder="NS AB 123" maxlength="12"></div></div>
+        <div><label class="label">Schilderung des Sachverhalts *</label><textarea name="text" required rows="5" maxlength="1000" class="input" placeholder="Was ist passiert? Wer war beteiligt? Gibt es Zeugen?"></textarea></div>
+        <div class="grid gap-4 sm:grid-cols-2"><div><label class="label">Name Ihrer Spielfigur</label><input name="name" class="input" maxlength="60" value="${ch ? esc(charName(ch)) : ''}" placeholder="Vor- und Nachname"></div><div><label class="label">Discord (für Rückfragen)</label><input name="discord" class="input" maxlength="40" placeholder="optional"></div></div>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" name="anonymous" class="mt-1"> Hinweis anonym abgeben (nur bei „Hinweis geben“)</label>
+        <p class="text-xs text-slate-500">Mit dem Absenden bestätigen Sie, dass Ihre Angaben wahrheitsgemäß sind. Falschmeldungen können im Rollenspiel Konsequenzen haben.</p><button class="btn-primary">Meldung absenden</button></form>
+        <aside class="space-y-4"><form data-submit="tipcheck" class="rounded-lg border border-slate-200 p-6"><h2 class="font-bold text-cop-800">Bearbeitungsstand prüfen</h2><p class="mt-1 text-sm text-slate-600">Geben Sie Ihre Vorgangsnummer ein.</p><input name="no" class="input mt-3 font-mono uppercase" placeholder="OW-2026-XXXXX" required><button class="btn-secondary mt-3 w-full">Status abfragen</button></form>
+          <div class="rounded-lg bg-slate-50 p-5 text-sm text-slate-600"><h2 class="font-bold text-cop-800">Gut zu wissen</h2><ul class="mt-2 list-disc space-y-1 pl-5"><li>Sie erhalten eine Vorgangsnummer.</li><li>Rückmeldungen der Polizei sehen Sie im Status.</li><li>Dringende Fälle bitte telefonisch melden.</li></ul></div></aside></div>`);
+  },
+
+  /* ---- Fahndungen & Zeugenaufrufe ---- */
+  async fahndungen() {
+    const [wanted, press] = await Promise.all([Public.getPublicWarrants(), Public.getPress()]), zeugen = press.filter(p => p.tag === 'Zeugenaufruf');
+    return pubPage('Fahndungen & Zeugenaufrufe', 'Fahndungen & Zeugenaufrufe', 'Die Polizei bittet die Bevölkerung um Mithilfe. Hinweise nehmen alle Dienststellen, der Notruf 110 und die Onlinewache entgegen.',
+      `<h2 class="text-xl font-bold text-cop-800">Öffentlichkeitsfahndung</h2>${wanted.length ? `<div class="mt-4 grid gap-4 md:grid-cols-2">${wanted.map(w => `<article class="flex gap-4 rounded-lg border border-slate-200 p-4"><div class="grid h-32 w-24 shrink-0 place-items-center overflow-hidden rounded bg-slate-100">${w.photo ? `<img src="${esc(w.photo)}" alt="Fahndungsfoto" class="h-full w-full object-cover" onerror="this.remove()">` : '<span class="px-1 text-center text-xs text-slate-400">Kein Foto vorhanden</span>'}</div>
+          <div class="min-w-0"><div class="text-xs font-semibold uppercase tracking-wide text-red-700">${esc(w.level)}</div><h3 class="text-lg font-bold text-cop-900">${esc(w.charName)}</h3><p class="text-sm text-slate-500">${w.age ? w.age + ' Jahre' : ''}${w.district ? ' • zuletzt ' + esc(w.district) : ''}</p><p class="mt-2 text-sm text-slate-700">${esc(w.reason)}</p><p class="mt-2 text-xs text-slate-400">Ausgeschrieben am ${fmtDate(w.createdAt)} • ${esc(w.id)}</p></div></article>`).join('')}</div>` : '<div class="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">Derzeit liegen keine Öffentlichkeitsfahndungen vor.</div>'}
+       <h2 class="mt-10 text-xl font-bold text-cop-800">Zeugenaufrufe</h2>${zeugen.length ? `<div class="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">${zeugen.map(pressCard).join('')}</div>` : '<div class="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">Derzeit gibt es keine Zeugenaufrufe.</div>'}
+       <div class="mt-10 rounded-lg bg-slate-50 p-5 text-sm text-slate-700"><b>Sie haben etwas gesehen?</b> Melden Sie sich über die <a href="#/onlinewache" class="font-semibold text-cop-600 underline">Onlinewache</a> oder wählen Sie im Ernstfall den Notruf 110. Nehmen Sie bei gesuchten Personen keine eigenen Maßnahmen vor.</div>`);
+  },
+
+  /* ---- Prävention ---- */
+  async praevention() {
+    return pubPage('Prävention', 'Kriminalprävention & Verkehrssicherheit', 'Praktische Tipps Ihrer Polizei für mehr Sicherheit in Saarbrücken.',
+      `<div class="grid gap-4 md:grid-cols-2">${PRAEVENTION.map(a => `<details class="rounded-lg border border-slate-200 bg-white p-5" open><summary class="cursor-pointer text-lg font-bold text-cop-800">${esc(a.t)}</summary><p class="mt-2 text-sm text-slate-500">${esc(a.lead)}</p><ul class="mt-3 list-disc space-y-1.5 pl-5 text-sm text-slate-700">${a.tips.map(t => `<li>${esc(t)}</li>`).join('')}</ul></details>`).join('')}</div>`);
+  },
+
+  /* ---- Karriere ---- */
+  async karriere() {
+    const roles = ['Einstieg: Ausbildung und Streifendienst unter Anleitung', 'Eigenverantwortlicher Streifen- und Kontrolldienst, Fahndung', 'Einsatzleitung, Ermittlungen und Ausbildung', 'Führung einer Dienststelle, Personal und Bewerbungen', 'Gesamtleitung der Landespolizei'];
+    return pubPage('Karriere', 'Karriere bei der Landespolizei', 'Sie möchten Verantwortung übernehmen und für die Sicherheit in Saarbrücken sorgen? Wir suchen Verstärkung.',
+      `<div class="grid gap-8 lg:grid-cols-2"><div><h2 class="text-xl font-bold text-cop-800">Das bringen Sie mit</h2><ul class="mt-3 list-disc space-y-1.5 pl-5 text-slate-700"><li>Spielfigur mit Bürgerkarte (mindestens 16 Jahre)</li><li>Führerschein Klasse B</li><li>Funktionierendes Mikrofon und Discord</li><li>Teamfähigkeit, Fair-Play und Spaß am Rollenspiel</li></ul>
+        <a href="index.html#/karriere/stellen" class="btn-primary mt-6">Jetzt im Bürgerportal bewerben</a><a href="index.html#/karriere/meine" class="btn-secondary ml-2 mt-6">Bewerbungsstatus</a></div>
+        <div><h2 class="text-xl font-bold text-cop-800">Laufbahn</h2><ol class="mt-3 space-y-2">${RANKS.map((r, i) => `<li class="flex gap-3 rounded-lg border border-slate-200 p-3"><span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cop-50 font-bold text-cop-700">${i + 1}</span><span><b class="text-cop-900">${r}</b><span class="block text-sm text-slate-600">${roles[i]}</span></span></li>`).join('')}</ol></div></div>`);
+  },
+
+  /* ---- Dienststellen & Kontakt ---- */
+  async dienststellen() {
+    return pubPage('Dienststellen', 'Dienststellen & Kontakt', 'Hier finden Sie die Dienststellen der Landespolizei und ihre Erreichbarkeit.',
+      `<div class="grid gap-4 md:grid-cols-2">${DIENSTSTELLEN.map(d => `<article class="rounded-lg border border-slate-200 p-5"><h2 class="font-bold text-cop-800">${esc(d.name)}</h2><p class="mt-1 text-sm text-slate-600">${esc(d.note)}</p>
+        <dl class="mt-3 grid grid-cols-[6rem_1fr] gap-y-1 text-sm"><dt class="text-slate-500">Adresse</dt><dd>${esc(d.addr)}, ${esc(CONFIG.CITY)}</dd><dt class="text-slate-500">Telefon</dt><dd class="font-mono font-semibold">${esc(d.phone)}</dd><dt class="text-slate-500">Zeiten</dt><dd>${esc(d.hours)}</dd></dl></article>`).join('')}</div>
+       <div class="mt-8 rounded-lg bg-red-700 p-5 text-white"><b>Im Notfall:</b> Wählen Sie immer den Notruf <b class="text-xl">110</b> (im Spiel: Funk oder Discord #notruf).</div>`);
+  },
+
+  /* ---- Bußgeldkatalog (öffentlich) ---- */
+  async bussgelder() {
+    return pubPage('Bußgeldkatalog', 'Bußgeldkatalog', 'Richtwerte für häufige Verstöße (fiktive Beträge im Rollenspiel).',
+      `<div class="overflow-x-auto rounded-lg border border-slate-200"><table class="w-full text-sm"><thead class="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Verstoß</th><th>Art</th><th class="px-4 text-right">Betrag</th></tr></thead><tbody>${OFFENSES.map(o => `<tr class="border-t border-slate-100"><td class="px-4 py-3 font-semibold">${esc(o.name)}</td><td>${badge(o.type)}</td><td class="px-4 text-right font-mono">${euro(o.fine)}</td></tr>`).join('')}</tbody></table></div>`);
+  },
+
+  /* ---- Rechtliches ---- */
+  async impressum() {
+    return pubPage('Impressum', 'Impressum', '', `<div class="max-w-3xl space-y-4 text-slate-700"><p class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900"><b>Fiktive Seite.</b> Es handelt sich nicht um das Angebot einer realen Behörde.</p>
+      <p><b>Betreiber:</b> Brick-Rigs-Rollenspiel-Community „Saarbrücken“ (privates, nicht kommerzielles Spielprojekt)</p><p><b>Kontakt:</b> über den Discord-Server der Community</p><p><b>Inhalte:</b> Alle dargestellten Dienststellen, Personen, Fahndungen und Rufnummern sind frei erfunden und dienen ausschließlich dem Rollenspiel.</p></div>`);
+  },
+  async datenschutz() {
+    return pubPage('Datenschutz', 'Datenschutz', '', `<div class="max-w-3xl space-y-4 text-slate-700"><p>Diese Demo-Version speichert Eingaben ausschließlich lokal im Browser (localStorage). Es werden keine Daten an Server übertragen.</p><p>Bitte verwenden Sie keine echten personenbezogenen Daten oder Passwörter, die Sie auch an anderer Stelle nutzen.</p><p class="text-sm text-slate-500">Platzhalter – für den Echtbetrieb mit Datenbank wird diese Erklärung ergänzt.</p></div>`);
+  },
+  async barrierefreiheit() {
+    return pubPage('Barrierefreiheit', 'Barrierefreiheit', '', `<div class="max-w-3xl space-y-4 text-slate-700"><p>Wir bemühen uns um eine verständliche und gut bedienbare Seite. Sollten Ihnen Barrieren auffallen, melden Sie sich bitte über den Discord-Server der Community.</p><p class="text-sm text-slate-500">Platzhalter für die spätere Erklärung zur Barrierefreiheit.</p></div>`);
+  }
+};
+
+// Suchfeld + Ergebnisliste (Filterung im Browser)
+function searchList(el, { items, placeholder, text, row, emptyMsg, filter, limit = 60 }) {
+  el.insertAdjacentHTML('beforeend', `<input type="search" data-q class="input mb-4 max-w-lg" placeholder="${esc(placeholder)}" autofocus><div data-list class="space-y-2"></div>`);
+  const q = $('[data-q]', el), list = $('[data-list]', el);
+  const draw = () => { const s = q.value.trim().toLowerCase(), rows = items.filter(i => (!filter || filter(i)) && (!s || text(i).toLowerCase().includes(s)));
+    list.innerHTML = rows.length ? rows.slice(0, limit).map(row).join('') + (rows.length > limit ? `<p class="text-xs text-slate-500">… und ${rows.length - limit} weitere – Suche eingrenzen.</p>` : '') : empty(emptyMsg); };
+  q.addEventListener('input', draw); draw();
+}
+
+const VIEWS = {
+  /* ---------------- Onlinewache-Eingänge ---------------- */
+  async eingaenge(el) {
+    const tips = await DB.getTips(), st = { eingegangen: C.warn, 'in bearbeitung': C.info, abgeschlossen: C.ok };
+    el.innerHTML = pageTitle('Onlinewache-Eingänge', `${tips.filter(t => t.status === 'eingegangen').length} neu • ${tips.length} gesamt`) +
+      (tips.map(t => card(`<div class="flex flex-wrap items-start justify-between gap-3"><div class="min-w-0"><span class="font-mono font-bold text-cop-800">${esc(t.no)}</span> ${badge(esc(t.type))} ${badge(esc(t.status), st[t.status])}
+        <p class="mt-1 text-sm text-slate-500">${esc(t.location)}${t.when ? ' • ' + esc(t.when) : ''}${t.plate ? ' • ' + esc(t.plate) : ''} • ${fmtDT(t.createdAt)}</p>
+        <p class="mt-2 text-sm text-slate-700">${esc(t.text)}</p>
+        <p class="mt-1 text-xs text-slate-400">${t.anonymous ? 'Anonymer Hinweis' : 'Von ' + esc(t.name) + (t.discord ? ' • Discord ' + esc(t.discord) : '')}</p></div>
+        <div class="flex gap-1">${['eingegangen', 'in bearbeitung', 'abgeschlossen'].filter(s => s !== t.status).map(s => `<button data-act="tipstatus" data-no="${esc(t.no)}" data-s="${s}" class="btn-secondary !px-2.5 !py-1 text-xs">${s.charAt(0).toUpperCase() + s.slice(1)}</button>`).join('')}</div></div>
+        ${(t.notes || []).map(n => `<div class="mt-2 rounded bg-slate-50 p-2 text-sm"><p>${esc(n.text)} ${n.public ? badge('für Melder sichtbar', C.ok) : badge('intern')}</p><p class="text-xs text-slate-400">${esc(n.by)} • ${fmtDT(n.at)}</p></div>`).join('')}
+        <form data-submit="tipnote" class="mt-3 flex flex-wrap items-center gap-2"><input type="hidden" name="no" value="${esc(t.no)}"><input name="text" required maxlength="300" class="input !w-auto min-w-[14rem] flex-1" placeholder="Notiz oder Rückmeldung …">
+          <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" name="pub"> für Melder sichtbar</label><button class="btn-secondary">Speichern</button></form>`, 'mb-3')).join('') || empty('Noch keine Meldungen über die Onlinewache eingegangen.'));
+  },
+
+  /* ---------------- Pressestelle ---------------- */
+  async presse(el) {
+    const press = await DB.getPress();
+    el.innerHTML = pageTitle('Pressestelle', 'Veröffentlichen Sie Meldungen auf der öffentlichen Website.') +
+      `<details class="mb-5 rounded-xl border border-slate-200 bg-white shadow-sm" open><summary class="cursor-pointer px-5 py-3 font-bold text-cop-700">Neue Pressemitteilung</summary>
+        <form data-submit="press" class="grid gap-3 border-t border-slate-100 p-5"><div class="grid gap-3 sm:grid-cols-[1fr_12rem]"><div><label class="label">Überschrift *</label><input name="title" required maxlength="120" class="input"></div>
+          <div><label class="label">Rubrik</label><select name="tag" class="input"><option>Allgemein</option><option>Verkehr</option><option>Zeugenaufruf</option><option>Prävention</option></select></div></div>
+          <div><label class="label">Text *</label><textarea name="text" required rows="5" maxlength="2000" class="input"></textarea></div><div><button class="btn-primary">Veröffentlichen</button></div></form></details>
+      <div class="space-y-2">${press.map(p => card(`<div class="flex items-start justify-between gap-3"><div><a href="#/aktuelles/${esc(p.id)}" class="font-bold text-cop-700 underline">${esc(p.title)}</a> ${badge(esc(p.tag), TAG_CLS[p.tag] || '')}<p class="text-xs text-slate-400">${esc(p.ref)} • ${fmtDate(p.date)}${p.by ? ' • ' + esc(p.by) : ''}</p></div>
+        ${p.custom ? `<button data-act="pressdel" data-id="${esc(p.id)}" class="btn-secondary !px-2.5 !py-1 text-xs text-red-600">Löschen</button>` : badge('Beispielmeldung')}</div>`)).join('')}</div>`;
+  },
+
+  /* ---------------- Übersicht ---------------- */
+  async dashboard(el, _, me) {
+    const [war, veh, cases, tips, recs] = await Promise.all([DB.getWarrants(), DB.getVehicles(), DB.getCases(), DB.getTips(), DB.getRecords()]);
+    const wantedV = veh.filter(v => v.status === 'gestohlen'), today = cases.filter(c => new Date(c.createdAt).toDateString() === new Date().toDateString());
+    const kept = recs.filter(r => r.kind === 'asservat' && r.status === 'sichergestellt');
+    const stat = (n, l, cls, href) => `<a href="${href}" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md"><div class="text-3xl font-extrabold ${cls}">${n}</div><div class="text-sm text-slate-500">${l}</div></a>`;
+    const recList = (kind, href, emptyMsg) => recs.filter(r => r.kind === kind).slice(0, 5).map(r => `<a href="#/${href}" class="flex items-center justify-between border-b border-slate-100 py-2 text-sm last:border-0"><span><b>${esc(r.title || r.offense || r.items)}</b>${r.charName ? ' – ' + esc(r.charName) : ''}</span><span class="text-xs text-slate-400">${fmtDT(r.createdAt)}</span></a>`).join('') || `<p class="text-sm text-slate-500">${emptyMsg}</p>`;
+    el.innerHTML = pageTitle(`Guten Dienst, ${esc(me.rank)} ${esc(me.char.last)}`, 'Lagebild der Landespolizei ' + CONFIG.LAND) + `
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">${stat(war.filter(w => w.active).length + wantedV.length, 'Aktive Fahndungen', 'text-red-600', '#/fahndung')}${stat(today.length, 'Vorgänge heute', 'text-cop-600', '#/vorgaenge')}
+        ${stat(tips.filter(t => t.status === 'eingegangen').length, 'Neue Eingänge (Onlinewache)', 'text-amber-600', '#/eingaenge')}${stat(kept.length, 'Asservate in Verwahrung', 'text-slate-800', '#/asservate')}</div>
+      <div class="mt-5 flex flex-wrap gap-2"><a href="#/berichte/neu" class="btn-primary">Bericht schreiben</a><a href="#/festnahmen/neu" class="btn-primary">Festnahme erfassen</a><a href="#/asservate/neu" class="btn-secondary">Beschlagnahme erfassen</a><a href="#/person" class="btn-secondary">Person abfragen</a><a href="#/fahrzeug" class="btn-secondary">Kennzeichen prüfen</a><a href="#/vorgaenge/neu" class="btn-secondary">Vorgang erfassen</a></div>
+      <div class="mt-6 grid gap-5 lg:grid-cols-2">
+        ${card(`<h2 class="mb-3 font-bold text-slate-900">Letzte Berichte</h2>${recList('bericht', 'berichte', 'Noch keine Berichte.')}`)}
+        ${card(`<h2 class="mb-3 font-bold text-slate-900">Letzte Festnahmen</h2>${recList('festnahme', 'festnahmen', 'Noch keine Festnahmen dokumentiert.')}`)}
+        ${card(`<h2 class="mb-3 font-bold text-slate-900">Letzte Vorgänge</h2>${cases.slice(0, 5).map(c => `<a href="#/person/${c.charId}" class="flex items-center justify-between border-b border-slate-100 py-2 text-sm last:border-0"><span><b>${esc(c.type)}</b> – ${esc(c.charName)}</span><span class="text-xs text-slate-400">${fmtDT(c.createdAt)}</span></a>`).join('') || '<p class="text-sm text-slate-500">Noch keine Vorgänge.</p>'}`, 'lg:col-span-2')}</div>`;
+  },
+
+  /* ---------------- Personenabfrage ---------------- */
+  async person(el, [id], me) {
+    const chars = await DB.getCharacters();
+    if (!id) {
+      el.innerHTML = pageTitle('Personenabfrage', `${chars.length} Bürger im Register – Suche nach Name, Bürger-ID oder Spielername`);
+      return searchList(el, { items: chars, placeholder: 'Name, Bürger-ID, Spielername …', emptyMsg: 'Keine Person gefunden.',
+        text: c => `${c.first} ${c.last} ${c.citizenId} ${c.username}`,
+        row: c => `<a href="#/person/${c.id}" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-cop-500 hover:shadow"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-cop-100 text-sm font-bold text-cop-700">${esc(c.first[0] + c.last[0])}</span><span class="min-w-0 flex-1"><b>${esc(charName(c))}</b><span class="block text-xs text-slate-500">${esc(c.citizenId)} • ${esc(c.district)} • geb. ${fmtDate(c.birth)}</span></span><span class="text-cop-600">→</span></a>` });
+    }
+    const c = chars.find(x => x.id === id);
+    if (!c) { el.innerHTML = pageTitle('Person nicht gefunden') + `<a href="#/person" class="btn-secondary">← Zur Suche</a>`; return; }
+    const [vs, lic, bs, cases, war, recs] = await Promise.all([DB.getVehicles(), DB.getLicenses(), DB.getBusinesses(), DB.getCases(), DB.getWarrants(), DB.getRecords()]);
+    const myV = vs.filter(v => v.ownerCharId === c.id), l = lic[c.id], myB = bs.filter(b => b.ownerCharId === c.id), myC = cases.filter(x => x.charId === c.id), myR = recs.filter(x => x.charId === c.id), pri = myR.filter(x => x.kind === 'vorstrafe'), w = war.filter(x => x.charId === c.id && x.active);
+    el.innerHTML = `<a href="#/person" class="text-sm font-semibold text-cop-600 hover:underline">← Zur Suche</a><div class="mt-3"></div>` +
+      (w.length ? `<div class="mb-4 rounded-xl border-2 border-red-300 bg-red-50 p-4 text-red-800"><b>ZUR FAHNDUNG AUSGESCHRIEBEN</b>${w.map(x => `<p class="mt-1 text-sm"><b>${esc(x.level)}</b> – ${esc(x.reason)} <span class="text-xs">(${esc(x.by)}, ${fmtDate(x.createdAt)})</span></p>`).join('')}</div>` : '') +
+      (pri.length ? `<div class="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"><b>Vorbestraft</b> – ${pri.length} Eintrag${pri.length > 1 ? 'e' : ''} im Strafregister</div>` : '') +
+      `<div class="grid gap-5 lg:grid-cols-[22rem_1fr]"><div class="space-y-4">${miniCard(c)}
+        <div class="flex flex-wrap gap-2"><a href="#/vorgaenge/neu/${c.id}" class="btn-primary">Vorgang erfassen</a><a href="#/festnahmen/neu/${c.id}" class="btn-secondary">Festnahme</a><a href="#/asservate/neu/${c.id}" class="btn-secondary">Beschlagnahme</a><a href="#/berichte/neu/${c.id}" class="btn-secondary">Bericht</a>${rankIdx(me.rank) >= RANK_SENIOR ? `<a href="#/vorstrafen/neu/${c.id}" class="btn-secondary">Vorstrafe</a>` : ''}${!w.length && rankIdx(Cop.officer().rank) >= RANK_SENIOR ? `<a href="#/fahndung/person/${c.id}" class="btn-danger">Fahndung</a>` : ''}</div></div>
+        <div class="space-y-4">${card(`<dl class="grid gap-4 sm:grid-cols-2">${kv('Spielername', esc(c.username))}${kv('Wohnbezirk', esc(c.district))}${kv('Geschlecht', esc({ M: 'Männlich', W: 'Weiblich', D: 'Divers' }[c.sex] || '–'))}${kv('Ausweis gültig bis', fmtDate(c.validUntil))}
+            ${kv('Führerschein', l ? `${esc(l.classes.join(', '))} <span class="font-mono text-xs text-slate-400">${esc(l.no)}</span>` : badge('keiner', C.warn))}${kv('Bürger seit', fmtDate(c.createdAt))}</dl>`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Fahrzeuge (${myV.length})</h2>${myV.length ? myV.map(v => `<a href="#/fahrzeug/${v.id}" class="flex items-center justify-between gap-2 border-b border-slate-100 py-2 last:border-0">${plateHTML(v.plate)}<span class="flex-1 text-sm">${esc(v.model)} <span class="text-slate-400">• ${esc(v.type)}</span></span>${v.status === 'gestohlen' ? badge('Fahndung', C.bad) : ''}</a>`).join('') : '<p class="text-sm text-slate-500">Keine Fahrzeuge.</p>'}`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Gewerbe (${myB.length})</h2>${myB.length ? myB.map(b => `<p class="border-b border-slate-100 py-2 text-sm last:border-0"><b>${esc(b.name)}</b> <span class="text-slate-500">• ${esc(b.plotName)} • ${esc(b.phone || '–')}</span> ${b.status === 'gesperrt' ? badge('gesperrt', C.bad) : ''}</p>`).join('') : '<p class="text-sm text-slate-500">Kein Gewerbe.</p>'}`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Strafregister – Vorstrafen (${myR.filter(x => x.kind === 'vorstrafe').length})</h2><div class="space-y-2">${myR.filter(x => x.kind === 'vorstrafe').map(r => recRow(r, me, false)).join('') || '<p class="text-sm text-slate-500">Keine Einträge.</p>'}</div>`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Festnahmen (${myR.filter(x => x.kind === 'festnahme').length})</h2><div class="space-y-2">${myR.filter(x => x.kind === 'festnahme').map(r => recRow(r, me, false)).join('') || '<p class="text-sm text-slate-500">Keine Einträge.</p>'}</div>`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Asservate / Beschlagnahmen (${myR.filter(x => x.kind === 'asservat').length})</h2><div class="space-y-2">${myR.filter(x => x.kind === 'asservat').map(r => recRow(r, me, false)).join('') || '<p class="text-sm text-slate-500">Keine Einträge.</p>'}</div>`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Berichte mit Personenbezug (${myR.filter(x => x.kind === 'bericht').length})</h2><div class="space-y-2">${myR.filter(x => x.kind === 'bericht').map(r => recRow(r, me, false)).join('') || '<p class="text-sm text-slate-500">Keine Einträge.</p>'}</div>`)}
+          ${card(`<h2 class="mb-3 font-bold text-slate-900">Vorgänge &amp; Bußgelder (${myC.length})</h2>${myC.length ? myC.map(caseRow).join('') : '<p class="text-sm text-slate-500">Keine Einträge.</p>'}`)}</div></div>`;
+  },
+
+  /* ---------------- Fahrzeugabfrage ---------------- */
+  async fahrzeug(el, [id]) {
+    const vs = await DB.getVehicles();
+    if (!id) {
+      el.innerHTML = pageTitle('Fahrzeugabfrage', `${vs.length} zugelassene Fahrzeuge – Suche nach Kennzeichen, Modell oder Halter`);
+      return searchList(el, { items: vs, placeholder: 'Kennzeichen, Modell, Halter, Bürger-ID …', emptyMsg: 'Kein Fahrzeug gefunden – Kennzeichen ggf. frei oder nicht zugelassen.',
+        text: v => `${v.plate} ${v.model} ${v.owner} ${v.citizenId || ''} ${v.type}`,
+        row: v => `<a href="#/fahrzeug/${v.id}" class="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 transition hover:border-cop-500 hover:shadow">${plateHTML(v.plate)}<span class="min-w-0 flex-1 text-sm"><b>${esc(v.model)}</b> <span class="text-slate-500">• ${esc(v.type)}${v.color ? ' • ' + esc(v.color) : ''}</span><span class="block text-xs text-slate-500">Halter: ${esc(v.owner)}</span></span>${v.status === 'gestohlen' ? badge('Fahndung', C.bad) : ''}</a>` });
+    }
+    const v = vs.find(x => x.id === id);
+    if (!v) { el.innerHTML = pageTitle('Fahrzeug nicht gefunden') + `<a href="#/fahrzeug" class="btn-secondary">← Zur Suche</a>`; return; }
+    const cases = (await DB.getCases()).filter(c => c.plate === v.plate), me = Cop.officer();
+    el.innerHTML = `<a href="#/fahrzeug" class="text-sm font-semibold text-cop-600 hover:underline">← Zur Suche</a>
+      ${v.status === 'gestohlen' ? `<div class="mt-3 rounded-xl border-2 border-red-300 bg-red-50 p-4 text-red-800"><b>ZUR FAHNDUNG AUSGESCHRIEBEN</b> <span class="font-mono text-sm">${esc(v.caseNo || '')}</span>${v.wantedReason ? `<p class="mt-1 text-sm">${esc(v.wantedReason)}</p>` : ''}${v.lastSeen ? `<p class="text-xs">Zuletzt gesehen/gemeldet: ${esc(v.lastSeen)}</p>` : ''}</div>` : ''}
+      <div class="mt-3 space-y-4">${card(`<div class="flex flex-wrap items-center justify-between gap-3">${plateHTML(v.plate).replace('h-10', 'h-14')}<div class="flex flex-wrap gap-2"><a href="#/vorgaenge/neu${v.ownerCharId ? '/' + v.ownerCharId : ''}/${encodeURIComponent(v.plate)}" class="btn-primary">Vorgang erfassen</a>
+          ${rankIdx(me.rank) >= RANK_SENIOR ? (v.status === 'gestohlen' ? `<button data-act="vwanted" data-id="${v.id}" data-on="0" class="btn-secondary">Fahndung aufheben</button>` : `<a href="#/fahndung/fahrzeug/${v.id}" class="btn-danger">Fahndung</a>`) : ''}</div></div>
+          <dl class="mt-4 grid gap-4 sm:grid-cols-3">${kv('Modell', esc(v.model))}${kv('Fahrzeugart', esc(v.type))}${kv('Farbe', esc(v.color || '–'))}${kv('Zugelassen am', fmtDate(v.createdAt))}
+          ${kv('Halter', v.ownerCharId ? `<a class="text-cop-600 underline" href="#/person/${v.ownerCharId}">${esc(v.owner)}</a>` : esc(v.owner))}${kv('Bürger-ID', esc(v.citizenId || '–'))}</dl>`)}
+        ${card(`<h2 class="mb-3 font-bold text-slate-900">Vorgänge zu diesem Kennzeichen (${cases.length})</h2>${cases.length ? cases.map(caseRow).join('') : '<p class="text-sm text-slate-500">Keine Einträge.</p>'}`)}</div>`;
+  },
+
+  /* ---------------- Fahndung ---------------- */
+  async fahndung(el, [kind, id], me) {
+    const [chars, war, vs] = await Promise.all([DB.getCharacters(), DB.getWarrants(), DB.getVehicles()]);
+    const canEdit = rankIdx(me.rank) >= RANK_SENIOR, act = war.filter(w => w.active), wantedV = vs.filter(v => v.status === 'gestohlen');
+    const preC = kind === 'person' ? chars.find(c => c.id === id) : null, preV = kind === 'fahrzeug' ? vs.find(v => v.id === id) : null;
+    el.innerHTML = pageTitle('Fahndung', 'Personen- und Fahrzeugfahndung der Landespolizei Bayern') + (canEdit ? '' : `<p class="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Als ${esc(me.rank)} können Sie Fahndungen nur einsehen. Ausschreiben/Aufheben ab „${RANKS[RANK_SENIOR]}“.</p>`) + `
+      <div class="grid gap-5 lg:grid-cols-2"><div class="space-y-4"><h2 class="font-bold text-slate-900">Personenfahndung (${act.length})</h2>
+        ${act.map(w => card(`<div class="flex items-start justify-between gap-2"><div><a href="#/person/${w.charId}" class="font-bold text-cop-700 underline">${esc(w.charName)}</a> ${badge(esc(w.level), C.bad)}${w.public ? ' ' + badge('öffentlich', C.info) : ''}<p class="mt-1 text-sm text-slate-600">${esc(w.reason)}</p><p class="text-xs text-slate-400">${esc(w.id)} • ${esc(w.by)} • ${fmtDT(w.createdAt)}</p></div>${canEdit ? `<button data-act="wclose" data-id="${w.id}" class="btn-secondary !py-1.5">Aufheben</button>` : ''}</div>`)).join('') || empty('Keine aktiven Personenfahndungen.')}
+        ${canEdit ? card(`<form data-submit="warrant" class="space-y-3"><h3 class="font-bold text-slate-900">Person ausschreiben</h3>${charList('dl-w', chars)}
+          <input name="person" list="dl-w" required class="input" placeholder="Name oder Bürger-ID" value="${preC ? esc(charOpt(preC)) : ''}"><select name="level" class="input">${WARRANT_LEVELS.map(l => `<option>${l}</option>`).join('')}</select><label class="flex items-center gap-2 text-sm"><input type="checkbox" name="public"> Öffentlichkeitsfahndung (auf der Website mit Foto veröffentlichen)</label>
+          <textarea name="reason" required rows="3" maxlength="300" class="input" placeholder="Grund der Fahndung"></textarea><button class="btn-danger">Zur Fahndung ausschreiben</button></form>`) : ''}</div>
+        <div class="space-y-4"><h2 class="font-bold text-slate-900">Fahrzeugfahndung (${wantedV.length})</h2>
+        ${wantedV.map(v => card(`<div class="flex items-start justify-between gap-2"><div>${plateHTML(v.plate)} <span class="ml-1 text-sm">${esc(v.model)}</span><p class="mt-1 text-sm text-slate-600">${esc(v.wantedReason || 'Als gestohlen/vermisst gemeldet')}</p><p class="text-xs text-slate-400">${esc(v.caseNo || '')} • zuletzt: ${esc(v.lastSeen || '–')} • Halter ${esc(v.owner)}</p></div>${canEdit ? `<button data-act="vwanted" data-id="${v.id}" data-on="0" class="btn-secondary !py-1.5">Aufheben</button>` : ''}</div>`)).join('') || empty('Keine Fahrzeugfahndungen.')}
+        ${canEdit ? card(`<form data-submit="vwarrant" class="space-y-3"><h3 class="font-bold text-slate-900">Fahrzeug ausschreiben</h3><input name="plate" required class="input uppercase" placeholder="Kennzeichen, z. B. NS AB 123" value="${preV ? esc(preV.plate) : ''}">
+          <textarea name="reason" rows="3" maxlength="300" class="input" placeholder="Grund (z. B. Tatfahrzeug, gestohlen)"></textarea><button class="btn-danger">Fahrzeug ausschreiben</button></form>`) : ''}</div></div>`;
+  },
+
+  /* ---------------- Vorgänge & Bußgelder ---------------- */
+  async vorgaenge(el, params, me) {
+    const [cases, chars, vs] = await Promise.all([DB.getCases(), DB.getCharacters(), DB.getVehicles()]);
+    const creating = params[0] === 'neu';
+    const preC = creating ? chars.find(c => c.id === params[1]) : null, prePlate = creating ? decodeURIComponent(params[preC ? 2 : 1] || '') : '';
+    el.innerHTML = pageTitle('Vorgänge & Bußgelder', `${cases.length} Vorgänge • offene Bußgelder: ${euro(cases.filter(c => c.status === 'offen').reduce((s, c) => s + c.fine, 0))}`) +
+      `<details class="mb-5 rounded-xl border border-slate-200 bg-white shadow-sm" ${creating ? 'open' : ''}><summary class="cursor-pointer px-5 py-3 font-bold text-cop-700">Neuen Vorgang erfassen</summary>
+        <form data-submit="newcase" class="grid gap-4 border-t border-slate-100 p-5 sm:grid-cols-2">${charList('dl-c', chars)}
+          <div><label class="label">Person *</label><input name="person" list="dl-c" required class="input" placeholder="Name oder Bürger-ID" value="${preC ? esc(charOpt(preC)) : ''}"></div>
+          <div><label class="label">Kennzeichen (optional)</label><input name="plate" class="input uppercase" placeholder="NS AB 123" value="${esc(prePlate)}"></div>
+          <div><label class="label">Verstoß (Katalog)</label><select data-change="offense" name="offense" class="input"><option value="">– frei erfassen –</option>${OFFENSES.map(o => `<option data-fine="${o.fine}" data-type="${o.type}">${esc(o.name)}</option>`).join('')}</select></div>
+          <div class="grid grid-cols-2 gap-3"><div><label class="label">Art *</label><select name="type" class="input">${CASE_TYPES.map(t => `<option>${t}</option>`).join('')}</select></div><div><label class="label">Betrag (€)</label><input name="fine" type="number" min="0" max="100000" value="0" class="input"></div></div>
+          <div class="sm:col-span-2"><label class="label">Sachverhalt *</label><textarea name="text" required rows="3" maxlength="500" class="input" placeholder="Was ist passiert? Ort, Zeit, Umstände …"></textarea></div>
+          <div class="sm:col-span-2"><button class="btn-primary">Vorgang speichern</button></div></form></details>
+      <div class="mb-3 flex flex-wrap gap-2"><select data-filter-type class="input max-w-[12rem]"><option value="">Alle Arten</option>${CASE_TYPES.map(t => `<option>${t}</option>`).join('')}</select></div>`;
+    const sel = $('[data-filter-type]', el);
+    searchList(el, { items: cases, placeholder: 'Person, Vorgangs-Nr., Kennzeichen, Beamter …', emptyMsg: 'Keine Vorgänge gefunden.',
+      text: c => `${c.charName} ${c.citizenId} ${c.id} ${c.plate} ${c.by} ${c.offense} ${c.type} ${c.status}`, filter: c => !sel.value || c.type === sel.value, row: c => caseRow(c, true) });
+    sel.addEventListener('change', () => $('[data-q]', el).dispatchEvent(new Event('input')));
+  },
+
+  /* ---------------- Akten: Berichte, Festnahmen, Asservate, Vorstrafen ---------------- */
+  async berichte(el, p, me) { return aktenView(el, p, me, 'bericht'); },
+  async festnahmen(el, p, me) { return aktenView(el, p, me, 'festnahme'); },
+  async asservate(el, p, me) { return aktenView(el, p, me, 'asservat'); },
+  async vorstrafen(el, p, me) { return aktenView(el, p, me, 'vorstrafe'); },
+
+  /* ---------------- Dienststelle ---------------- */
+  async personal(el, _, me) {
+    const off = await DB.getOfficers(), lead = rankIdx(me.rank) >= RANK_LEAD;
+    el.innerHTML = pageTitle('Dienststelle', `${off.length} Beamte`) +
+      `<div class="grid gap-5 lg:grid-cols-[20rem_1fr]">
+        <div class="h-fit rounded-xl bg-gradient-to-br from-slate-900 via-cop-800 to-cop-600 p-5 text-white shadow"><div class="mb-3 h-1 rounded bg-white/30"></div><div class="text-[11px] font-semibold uppercase tracking-widest text-cop-200">Dienstausweis • Landespolizei Bayern</div>
+          <div class="mt-3 flex gap-3"><div class="grid h-24 w-20 shrink-0 place-items-center overflow-hidden rounded-md border border-white/40 bg-slate-800">${me.char.photo ? `<img src="${esc(me.char.photo)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : '<span class="px-1 text-center text-xs text-white/60">Kein Foto</span>'}</div>
+          <div class="text-sm"><b class="block text-lg leading-tight">${esc(me.name)}</b><span class="text-cop-100">${esc(me.rank)}</span><div class="mt-2 font-mono text-lg font-bold">${esc(me.badge)}</div><div class="text-xs text-cop-200">seit ${fmtDate(me.since)}</div></div></div></div>
+        <div class="space-y-2">${off.map(o => `<div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3"><div class="min-w-0 flex-1"><b>${esc(o.name)}</b> <span class="font-mono text-xs text-slate-400">${esc(o.badge)}</span><span class="block text-xs text-slate-500">${esc(o.rank)} • seit ${fmtDate(o.since)}</span></div>
+          ${lead && o.accountId !== me.accountId ? `<select data-change="rank" data-id="${o.accountId}" class="input !w-auto !py-1.5 text-sm" aria-label="Dienstgrad">${RANKS.map(r => `<option ${r === o.rank ? 'selected' : ''}>${r}</option>`).join('')}</select><button data-act="fire" data-id="${o.accountId}" data-name="${esc(o.name)}" class="btn-secondary !py-1.5 text-red-600">Entlassen</button>` : badge(esc(o.rank), o.accountId === me.accountId ? C.info : '')}</div>`).join('')}</div></div>`;
+  },
+
+  /* ---------------- Bewerbungen (Leitung) ---------------- */
+  async bewerbungen(el) {
+    const apps = await DB.getPoliceApplications(), cls = { offen: C.warn, angenommen: C.ok, abgelehnt: C.bad };
+    el.innerHTML = pageTitle('Bewerbungen', 'Bewerbungen aus dem Bürgerportal (Karriere → Polizei). Bei Annahme wird automatisch ein Dienstzugang als Anwärter eingerichtet.') +
+      (apps.map(a => card(`<div class="flex flex-wrap items-start justify-between gap-3"><div><b class="text-slate-900">${esc(a.name)}</b> ${badge(esc(a.status), cls[a.status])}<p class="text-sm text-slate-600">Discord ${esc(a.discord)} • ${a.age} J. • ${esc(a.experience)}</p><p class="text-xs text-slate-400">${esc(a.appNo)} • ${fmtDT(a.createdAt)}${a.decidedBy ? ' • entschieden von ' + esc(a.decidedBy) : ''}</p></div>
+        <div class="flex gap-2">${a.status === 'offen' ? `<button data-act="appdecide" data-no="${a.appNo}" data-s="angenommen" class="btn-primary !py-1.5">Annehmen</button><button data-act="appdecide" data-no="${a.appNo}" data-s="abgelehnt" class="btn-secondary !py-1.5 text-red-600">Ablehnen</button>` : ''}</div></div>
+        <details class="mt-2"><summary class="cursor-pointer text-sm font-semibold text-cop-700">Bewerbungstext</summary><p class="mt-2 whitespace-pre-line text-sm text-slate-600">${esc(a.text)}</p></details>`, 'mb-3')).join('') || empty('Keine Bewerbungen für die Polizei eingegangen.'));
+  },
+
+  /* ---------------- Bußgeldkatalog ---------------- */
+  async katalog(el) {
+    el.innerHTML = pageTitle('Bußgeldkatalog', 'Richtwerte (fiktive RP-Beträge). Beim Erfassen eines Vorgangs wird der Betrag automatisch übernommen.') +
+      card(`<table class="w-full text-sm"><thead><tr class="border-b border-slate-200 text-left text-xs uppercase text-slate-500"><th class="py-2">Verstoß</th><th>Art</th><th class="text-right">Betrag</th></tr></thead><tbody>${OFFENSES.map(o => `<tr class="border-b border-slate-100 last:border-0"><td class="py-2.5 font-semibold">${esc(o.name)}</td><td>${badge(o.type)}</td><td class="text-right font-mono">${euro(o.fine)}</td></tr>`).join('')}</tbody></table>`);
+  }
+};
+
+// Zeile für einen Vorgang (Akte, Kennzeichen-Ansicht, Vorgangsliste)
+/* ---- Akten: Konfiguration je Art ---- */
+const AKTEN = {
+  bericht:    { tab: 'berichte',   title: 'Berichte', lead: 'Streifen-, Unfall- und Ermittlungsberichte schreiben und nachschlagen.', add: 'Neuen Bericht schreiben', btn: 'Bericht speichern', ph: 'Betreff, Person, Kennzeichen, Text …' },
+  festnahme:  { tab: 'festnahmen', title: 'Festnahmen', lead: 'Festnahmen dokumentieren – sie erscheinen in der Personenakte.', add: 'Festnahme erfassen', btn: 'Festnahme speichern', ph: 'Person, Tatvorwurf, Ort …' },
+  asservat:   { tab: 'asservate',  title: 'Asservate & Beschlagnahmen', lead: 'Sichergestellte Gegenstände und Fahrzeuge dokumentieren und verwalten.', add: 'Beschlagnahme erfassen', btn: 'Beschlagnahme speichern', ph: 'Gegenstand, Person, Kennzeichen, Lagerort …' },
+  vorstrafe:  { tab: 'vorstrafen', title: 'Vorstrafen', lead: 'Rechtskräftige Verurteilungen im Strafregister (Eintragen ab Dienstgrad Polizeimeister).', add: 'Vorstrafe eintragen', btn: 'Eintrag speichern', ph: 'Person, Straftat, Aktenzeichen …' }
+};
+const personField = (chars, pre, req, label) => `${charList('dl-p', chars)}<div><label class="label">${label}${req ? ' *' : ' (optional)'}</label><input name="person" list="dl-p" ${req ? 'required' : ''} class="input" placeholder="Name oder Bürger-ID" value="${pre ? esc(charOpt(pre)) : ''}"></div>`;
+const locField = () => `<div><label class="label">Ort</label><select name="location" class="input">${STREETS.map(x => `<option>${x}</option>`).join('')}<option>Anderer Ort</option></select></div>`;
+function aktenForm(kind, chars, pre, me) {
+  const senior = rankIdx(me.rank) >= RANK_SENIOR, ta = (n, l, r, ph, rows = 4) => `<div class="sm:col-span-2"><label class="label">${l}${r ? ' *' : ''}</label><textarea name="${n}" ${r ? 'required' : ''} rows="${rows}" maxlength="1500" class="input" placeholder="${ph}"></textarea></div>`;
+  let f = '';
+  if (kind === 'bericht') f = `<div><label class="label">Art des Berichts</label><select name="sub" class="input">${REPORT_TYPES.map(t => `<option>${t}</option>`).join('')}</select></div><div><label class="label">Betreff *</label><input name="title" required maxlength="100" class="input" placeholder="z. B. Verkehrskontrolle Hauptstraße"></div>
+    ${locField()}${personField(chars, pre, false, 'Beteiligte Person')}<div><label class="label">Kennzeichen (optional)</label><input name="plate" class="input uppercase" placeholder="NS AB 123"></div>${ta('text', 'Berichtstext', true, 'Was ist passiert? Maßnahmen, Beteiligte, Ergebnis …', 6)}`;
+  if (kind === 'festnahme') f = `${personField(chars, pre, true, 'Festgenommene Person')}<div><label class="label">Tatvorwurf *</label><input name="offense" required maxlength="120" class="input" list="dl-o" placeholder="z. B. Raub, Fahren ohne Führerschein"><datalist id="dl-o">${OFFENSES.map(o => `<option value="${esc(o.name)}"></option>`).join('')}</datalist></div>
+    ${locField()}${ta('text', 'Hergang', true, 'Wie kam es zur Festnahme? Beteiligte Beamte, Verhalten der Person …', 5)}
+    ${senior ? '<label class="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="closeWarrant" checked> Bestehende Personenfahndung zu dieser Person beenden</label>' : ''}`;
+  if (kind === 'asservat') f = `<div class="sm:col-span-2"><label class="label">Sichergestellte Gegenstände *</label><textarea name="items" required rows="2" maxlength="400" class="input" placeholder="z. B. 2 Schusswaffen, 5.000 € Bargeld, Fahrzeug …"></textarea></div>
+    ${personField(chars, pre, false, 'Eigentümer / Beschuldigter')}<div><label class="label">Kennzeichen (bei Fahrzeug)</label><input name="plate" class="input uppercase" placeholder="NS AB 123"></div>${locField()}<div><label class="label">Lagerort</label><select name="storage" class="input">${STORAGES.map(x => `<option>${x}</option>`).join('')}</select></div>${ta('text', 'Grund der Beschlagnahme', true, 'Rechtsgrundlage, Fundumstände …', 3)}`;
+  if (kind === 'vorstrafe') f = `${personField(chars, pre, true, 'Verurteilte Person')}<div><label class="label">Straftat *</label><input name="offense" required maxlength="120" class="input" placeholder="z. B. Schwerer Raub"></div>
+    <div><label class="label">Strafart *</label><select name="sentence" class="input">${SENTENCE_TYPES.map(t => `<option>${t}</option>`).join('')}</select></div><div><label class="label">Höhe / Dauer</label><input name="sentenceDetail" maxlength="60" class="input" placeholder="z. B. 8 Monate, 2.500 €"></div>
+    <div><label class="label">Aktenzeichen</label><input name="fileNo" maxlength="40" class="input" placeholder="optional"></div><div><label class="label">Datum des Urteils</label><input name="date" type="date" class="input" value="${new Date().toISOString().slice(0, 10)}"></div>${ta('text', 'Anmerkung', false, 'optional', 2)}`;
+  return `<form data-submit="rec" class="grid gap-4 border-t border-slate-100 p-5 sm:grid-cols-2"><input type="hidden" name="kind" value="${kind}">${f}<div class="sm:col-span-2"><button class="btn-primary">${AKTEN[kind].btn}</button></div></form>`;
+}
+// Einzelner Eintrag (in Listen und in der Personenakte)
+function recRow(r, me, withPerson = true) {
+  const lead = rankIdx(me.rank) >= RANK_LEAD, senior = rankIdx(me.rank) >= RANK_SENIOR;
+  const who = r.charName ? (withPerson ? `<a class="font-semibold text-cop-700 underline" href="#/person/${r.charId}">${esc(r.charName)}</a> <span class="text-slate-400">${esc(r.citizenId)}</span>` : '') : '';
+  let head = '', body = '';
+  if (r.kind === 'bericht') { head = `<b>${esc(r.title)}</b> ${badge(esc(r.sub || 'Bericht'))}`; body = `<p class="mt-1 whitespace-pre-line text-slate-600">${esc(r.text)}</p>`; }
+  if (r.kind === 'festnahme') { head = `<b>${esc(r.offense)}</b> ${badge('Festnahme', C.bad)}`; body = `<p class="mt-1 whitespace-pre-line text-slate-600">${esc(r.text)}</p>`; }
+  if (r.kind === 'asservat') { const st = SEIZE_STATUS[r.status] || SEIZE_STATUS.sichergestellt; head = `<b>${esc(r.items)}</b> ${badge(st.label, st.cls)}`; body = `<p class="mt-1 text-slate-600">${esc(r.text)}</p><p class="text-xs text-slate-500">Lagerort: ${esc(r.storage || '–')}${r.plate ? ' • ' + esc(r.plate) : ''}</p>`; }
+  if (r.kind === 'vorstrafe') { head = `<b>${esc(r.offense)}</b> ${badge(esc(r.sentence), C.warn)}${r.sentenceDetail ? ' <span class="text-slate-600">' + esc(r.sentenceDetail) + '</span>' : ''}`; body = `<p class="text-xs text-slate-500">Urteil vom ${fmtDate(r.date)}${r.fileNo ? ' • Az. ' + esc(r.fileNo) : ''}</p>${r.text ? `<p class="mt-1 text-slate-600">${esc(r.text)}</p>` : ''}`; }
+  const acts = (r.kind === 'asservat' && senior && r.status === 'sichergestellt' ? `<button data-act="recstatus" data-id="${r.id}" data-s="zurueck" class="btn-secondary !px-2.5 !py-1 text-xs">Zurückgeben</button><button data-act="recstatus" data-id="${r.id}" data-s="eingezogen" class="btn-secondary !px-2.5 !py-1 text-xs">Einziehen</button>` : '')
+    + (lead ? `<button data-act="recdel" data-id="${r.id}" class="btn-secondary !px-2.5 !py-1 text-xs text-red-600">Löschen</button>` : '');
+  return `<div class="rounded-lg border border-slate-200 bg-white p-3 text-sm"><div class="flex flex-wrap items-start justify-between gap-2"><div class="min-w-0">${head}${who ? `<p class="text-xs">${who}</p>` : ''}${body}
+    <p class="mt-1 text-xs text-slate-400">${esc(r.id)}${r.location ? ' • ' + esc(r.location) : ''} • ${esc(r.by)} (${esc(r.badge || '')}) • ${fmtDT(r.createdAt)}</p></div><div class="flex gap-1">${acts}</div></div></div>`;
+}
+async function aktenView(el, params, me, kind) {
+  const cfg = AKTEN[kind], [recs, chars] = await Promise.all([DB.getRecords(kind), DB.getCharacters()]);
+  const creating = params[0] === 'neu', pre = creating ? chars.find(c => c.id === params[1]) : null, canAdd = kind !== 'vorstrafe' || rankIdx(me.rank) >= RANK_SENIOR;
+  el.innerHTML = pageTitle(cfg.title, `${cfg.lead} • ${recs.length} Einträge`) +
+    (canAdd ? `<details class="mb-5 rounded-xl border border-slate-200 bg-white shadow-sm" ${creating ? 'open' : ''}><summary class="cursor-pointer px-5 py-3 font-bold text-cop-700">${cfg.add}</summary>${aktenForm(kind, chars, pre, me)}</details>`
+      : '<p class="mb-5 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">Vorstrafen einsehen ist möglich – Eintragen erst ab Dienstgrad Polizeimeister.</p>');
+  searchList(el, { items: recs, placeholder: cfg.ph, emptyMsg: 'Keine Einträge gefunden.', text: r => `${r.id} ${r.title} ${r.sub} ${r.text} ${r.offense} ${r.items} ${r.charName} ${r.citizenId} ${r.plate} ${r.by} ${r.fileNo} ${r.sentence}`, row: r => recRow(r, me) });
+}
+
+function caseRow(c, withPerson) {
+  const me = Cop.officer(), cls = { offen: C.warn, bezahlt: C.ok, erlassen: '', erfasst: '' }[c.status] ?? '';
+  return `<div class="rounded-lg border border-slate-100 bg-white p-3 text-sm ${withPerson ? 'border-slate-200 shadow-sm' : ''}"><div class="flex flex-wrap items-start justify-between gap-2"><div><b>${esc(c.type)}</b>${c.offense ? ' – ' + esc(c.offense) : ''} ${c.fine ? badge(euro(c.fine), C.info) : ''} ${badge(esc(c.status), cls)}
+    ${withPerson ? `<p class="text-xs"><a class="font-semibold text-cop-700 underline" href="#/person/${c.charId}">${esc(c.charName)}</a> <span class="text-slate-400">${esc(c.citizenId)}</span>${c.plate ? ' • ' + esc(c.plate) : ''}</p>` : (c.plate ? `<p class="text-xs text-slate-500">${esc(c.plate)}</p>` : '')}
+    <p class="mt-1 text-slate-600">${esc(c.text)}</p><p class="text-xs text-slate-400">${esc(c.id)} • ${esc(c.by)} (${esc(c.badge || '')}) • ${fmtDT(c.createdAt)}</p></div>
+    <div class="flex gap-1">${c.status === 'offen' ? `<button data-act="casestatus" data-id="${c.id}" data-s="bezahlt" class="btn-secondary !px-2.5 !py-1 text-xs">Als bezahlt</button>${rankIdx(me.rank) >= RANK_SENIOR ? `<button data-act="casestatus" data-id="${c.id}" data-s="erlassen" class="btn-secondary !px-2.5 !py-1 text-xs">Erlassen</button>` : ''}` : ''}
+      ${rankIdx(me.rank) >= RANK_LEAD ? `<button data-act="casedel" data-id="${c.id}" class="btn-secondary !px-2.5 !py-1 text-xs text-red-600">Löschen</button>` : ''}</div></div></div>`;
+}
+
+/* ------------------------------------------------------------------
+   5) AKTIONEN (zentral per Event-Delegation – Buttons: data-act, Formulare: data-submit, Selects: data-change)
+   ------------------------------------------------------------------ */
+const ACT = {
+  logout: async () => { await DB.logout(); location.hash = ''; render(); },
+  recstatus: async b => { await DB.setRecordStatus(b.dataset.id, b.dataset.s); toast('Status aktualisiert.', 'success'); render(); },
+  recdel: async b => { if (!confirm('Eintrag endgültig löschen?')) return; await DB.removeRecord(b.dataset.id); toast('Eintrag gelöscht.', 'success'); render(); },
+  wclose: async b => { await DB.closeWarrant(b.dataset.id); toast('Fahndung aufgehoben.', 'success'); render(); },
+  vwanted: async b => { await DB.setVehicleWanted(b.dataset.id, b.dataset.on === '1'); toast('Fahrzeugfahndung aufgehoben.', 'success'); render(); },
+  casestatus: async b => { await DB.setCaseStatus(b.dataset.id, b.dataset.s); toast('Status aktualisiert.', 'success'); render(); },
+  casedel: async b => { if (!confirm('Vorgang endgültig löschen?')) return; await DB.removeCase(b.dataset.id); toast('Vorgang gelöscht.', 'success'); render(); },
+  fire: async b => { if (!confirm(`${b.dataset.name} aus dem Dienst entlassen?`)) return; await DB.removeOfficer(b.dataset.id); toast('Beamter entlassen.', 'success'); render(); },
+  tipstatus: async b => { await DB.setTipStatus(b.dataset.no, b.dataset.s); toast('Status aktualisiert.', 'success'); render(); },
+  pressdel: async b => { if (!confirm('Meldung löschen?')) return; await DB.removePress(b.dataset.id); toast('Meldung gelöscht.', 'success'); render(); },
+  appdecide: async b => { await DB.decideApplication(b.dataset.no, b.dataset.s); toast(b.dataset.s === 'angenommen' ? 'Bewerber angenommen – Dienstzugang eingerichtet.' : 'Bewerbung abgelehnt.', 'success'); render(); }
+};
+const SUB = {
+  tipnote: async f => { const d = Object.fromEntries(new FormData(f)); await DB.addTipNote(d.no, d.text.trim(), d.pub === 'on'); toast('Notiz gespeichert.', 'success'); render(); },
+  press: async f => { const d = Object.fromEntries(new FormData(f)); await DB.addPress({ title: d.title.trim(), tag: d.tag, text: d.text.trim() }); toast('Meldung veröffentlicht.', 'success'); render(); },
+  tip: async f => { const d = Object.fromEntries(new FormData(f)); d.anonymous = d.anonymous === 'on'; const btn = f.querySelector('button'); btn.disabled = true;
+    try { const no = await Public.submitTip(d); location.hash = '#/onlinewache/eingang/' + no; } catch (ex) { toast(ex.message, 'error'); btn.disabled = false; } },
+  tipcheck: async f => { const d = Object.fromEntries(new FormData(f)); location.hash = '#/onlinewache/status/' + encodeURIComponent(d.no.trim().toUpperCase()); },
+  login: async f => { const d = Object.fromEntries(new FormData(f)), er = $('#login-error'); er.classList.add('hidden');
+    try { await DB.login(d.u, d.p); render(); } catch (ex) { er.textContent = ex.message; er.classList.remove('hidden'); } },
+  duty: async f => { const d = Object.fromEntries(new FormData(f)), er = $('#duty-error'); er.classList.add('hidden');
+    try { await DB.activateDuty(d.charId, d.code); toast('Dienstzugang freigeschaltet. Willkommen!', 'success'); location.hash = '#/dashboard'; render(); } catch (ex) { er.textContent = ex.message; er.classList.remove('hidden'); } },
+  warrant: async f => { const d = Object.fromEntries(new FormData(f)), c = resolveChar(d.person, await DB.getCharacters());
+    if (!c) return toast('Person nicht gefunden – bitte aus der Liste wählen.', 'error');
+    await DB.addWarrant({ charId: c.id, level: d.level, reason: d.reason.trim(), public: d.public === 'on' }); toast('Person zur Fahndung ausgeschrieben.', 'success'); location.hash = '#/fahndung'; render(); },
+  vwarrant: async f => { const d = Object.fromEntries(new FormData(f)), p = normPlate(d.plate), v = p && (await DB.getVehicles()).find(x => x.plate === p);
+    if (!v) return toast('Kein zugelassenes Fahrzeug mit diesem Kennzeichen.', 'error');
+    await DB.setVehicleWanted(v.id, true, d.reason.trim()); toast(`Fahrzeug ${p} ausgeschrieben.`, 'success'); location.hash = '#/fahndung'; render(); },
+  newcase: async f => { const d = Object.fromEntries(new FormData(f)), c = resolveChar(d.person, await DB.getCharacters());
+    if (!c) return toast('Person nicht gefunden – bitte aus der Liste wählen.', 'error');
+    let plate = ''; if (d.plate.trim()) { plate = normPlate(d.plate); if (!plate) return toast('Ungültiges Kennzeichenformat.', 'error'); }
+    await DB.addCase({ charId: c.id, type: d.type, plate, offense: d.offense, fine: d.fine, text: d.text.trim() }); toast('Vorgang gespeichert.', 'success'); location.hash = '#/vorgaenge'; render(); },
+  rec: async f => { const d = Object.fromEntries(new FormData(f)), kind = d.kind, chars = await DB.getCharacters();
+    let c = null; if ((d.person || '').trim()) { c = resolveChar(d.person, chars); if (!c) return toast('Person nicht gefunden – bitte aus der Liste wählen.', 'error'); }
+    let plate = ''; if ((d.plate || '').trim()) { plate = normPlate(d.plate); if (!plate) return toast('Ungültiges Kennzeichenformat.', 'error'); }
+    await DB.addRecord(kind, { ...d, charId: c ? c.id : null, plate, closeWarrant: d.closeWarrant === 'on' });
+    toast('Eintrag gespeichert.', 'success'); location.hash = '#/' + AKTEN[kind].tab; render(); }
+};
+const CHG = {
+  rank: async s => { await DB.setRank(s.dataset.id, s.value); toast('Dienstgrad geändert.', 'success'); render(); },
+  offense: s => { const o = s.selectedOptions[0], f = s.closest('form'); if (!o || !o.dataset.fine) return; f.elements.fine.value = o.dataset.fine; f.elements.type.value = o.dataset.type; }
+};
+document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b); });
+document.addEventListener('submit', e => { const f = e.target.closest('form[data-submit]'); if (f && SUB[f.dataset.submit]) { e.preventDefault(); SUB[f.dataset.submit](f); } });
+document.addEventListener('change', e => { const s = e.target.closest('[data-change]'); if (s && CHG[s.dataset.change]) CHG[s.dataset.change](s); });
+// Fehler aus Aktionen (z. B. fehlende Rechte) als Hinweis anzeigen
+window.addEventListener('unhandledrejection', e => { e.preventDefault(); toast((e.reason && e.reason.message) || 'Unerwarteter Fehler.', 'error'); });
+
+/* ------------------------------------------------------------------
+   6) INIT
+   ------------------------------------------------------------------ */
+window.addEventListener('hashchange', render);
+window.addEventListener('storage', e => { if (e.key && e.key.startsWith('np_') && !PAGES[(location.hash.replace(/^#\/?/, '').split('/')[0] || 'start')]) render(); });   // Änderungen aus dem Bürgerportal-Tab übernehmen
+render();
+</script>
+<!-- Supabase-Anbindung: leer lassen (js/config.js) = Demo-Modus mit localStorage -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/sb-common.js"></script>
+<script src="js/backend-police.js"></script>
+</body>
+</html>

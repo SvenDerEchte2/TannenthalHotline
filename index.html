@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bürgerportal Saarbrücken – Ihr Online-Rathaus</title>
+
+  <!-- Tailwind CSS via CDN (nur für Prototyp; für Produktion später per Build einbinden) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Farbschema: Navy + frisches Akzent-Grün
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'Segoe UI', 'Roboto', 'sans-serif'] },
+          colors: {
+            navy: { 50:'#eef3fa', 100:'#d9e4f3', 200:'#b3c8e6', 500:'#1d4e89', 600:'#173f6f', 700:'#13315c', 800:'#0e2749', 900:'#0b1f3a' },
+            accent: { 50:'#e8faf3', 100:'#c8f2e1', 500:'#12b886', 600:'#0ea371', 700:'#0b8a5f' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Wiederverwendbare Komponenten-Klassen -->
+  <style type="text/tailwindcss">
+    @layer components {
+      .label   { @apply block text-sm font-semibold text-slate-700 mb-1; }
+      .hint    { @apply mt-1 text-xs text-slate-500; }
+      .input   { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none transition focus:border-navy-500 focus:ring-2 focus:ring-navy-500/25; }
+      .btn     { @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 font-semibold transition focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed; }
+      .btn-primary   { @apply btn bg-accent-600 text-white hover:bg-accent-700 focus:ring-accent-500; }
+      .btn-secondary { @apply btn bg-white text-navy-700 border border-slate-300 hover:bg-slate-50 focus:ring-navy-500; }
+      .btn-navy      { @apply btn bg-navy-700 text-white hover:bg-navy-600 focus:ring-navy-500; }
+      .choice        { @apply rounded-xl border-2 border-slate-200 bg-white p-3 text-left transition hover:border-navy-500 cursor-pointer; }
+      .choice.active { @apply border-accent-600 bg-accent-50 ring-2 ring-accent-500/30; }
+      .tab           { @apply px-4 py-2 text-sm font-semibold rounded-lg text-slate-600 hover:bg-slate-100; }
+      .tab.active    { @apply bg-navy-700 text-white hover:bg-navy-700; }
+    }
+  </style>
+  <style>
+    html { scroll-behavior: smooth; }
+    /* Karten-Map (Gewerbe-Standort) */
+    .plot rect { fill:#dbeafe; stroke:#1d4e89; stroke-width:2; transition: fill .15s; cursor:pointer; }
+    .plot:hover rect { fill:#93c5fd; }
+    .plot text { pointer-events:none; font-size:12px; font-weight:600; fill:#0b1f3a; }
+    .plot.occupied rect { fill:#e2e8f0; stroke:#94a3b8; cursor:not-allowed; }
+    .plot.occupied text { fill:#64748b; }
+    .plot.selected rect { fill:#12b886; stroke:#0b8a5f; }
+    .plot.selected text { fill:#fff; }
+    /* Kennzeichen */
+    .plate { font-family: 'Arial Narrow', Arial, sans-serif; letter-spacing: .04em; }
+    @media print { header, footer, #hero, #categories { display:none } }
+  </style>
+</head>
+
+<body class="bg-slate-50 font-sans text-slate-800 antialiased">
+
+<!-- ================= SVG-Symbole (Wappen-Platzhalter) ================= -->
+<svg width="0" height="0" class="absolute" aria-hidden="true">
+  <symbol id="crest" viewBox="0 0 64 64">
+    <path d="M8 6h48v26c0 14-10 22-24 28C18 54 8 46 8 32z" fill="#fff" stroke="#12b886" stroke-width="3"/>
+    <path d="M8 6h48v14H8z" fill="#13315c"/>
+    <path d="M20 46V30l12-8 12 8v16z" fill="#13315c"/>
+    <rect x="29" y="36" width="6" height="10" fill="#12b886"/>
+    <path d="M22 14l3 3 4-5 3 5 3-5 4 5 3-3" fill="none" stroke="#fff" stroke-width="2"/>
+  </symbol>
+</svg>
+
+<!-- ================= Notfall-Leiste ================= -->
+<div class="bg-red-700 text-white text-sm">
+  <div class="mx-auto max-w-7xl px-4 py-1.5 flex flex-wrap items-center justify-between gap-2">
+    <p class="font-semibold">🚨 Notfall? Polizei &amp; Feuerwehr erreichen Sie im Spiel per Funk oder im Discord-Kanal <span class="underline">#notruf</span>.</p>
+    <p class="hidden sm:block opacity-90">Hinweis: Fiktives Portal der Brick-Rigs-RP-Community</p>
+  </div>
+</div>
+
+<!-- ================= Header ================= -->
+<header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+  <div class="mx-auto max-w-7xl px-4 py-3 flex items-center gap-4">
+    <a href="#" class="flex items-center gap-3 shrink-0" aria-label="Startseite Bürgerportal Saarbrücken">
+      <svg class="h-12 w-12"><use href="#crest"/></svg>
+      <div class="leading-tight">
+        <div class="text-xs uppercase tracking-widest text-slate-500">Stadt</div>
+        <div class="text-xl font-extrabold text-navy-700">Saarbrücken</div>
+        <div class="text-[11px] text-accent-700 font-semibold -mt-0.5">Bürgerportal</div>
+      </div>
+    </a>
+
+    <!-- Schnellsuche -->
+    <div class="relative flex-1 max-w-xl ml-auto">
+      <label for="search" class="sr-only">Suche</label>
+      <input id="search" type="search" autocomplete="off" placeholder="Was möchten Sie erledigen? z. B. „LKW anmelden“"
+             class="input pl-10" />
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+      <ul id="search-results" class="hidden absolute left-0 right-0 mt-2 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden"></ul>
+    </div>
+
+    <nav class="hidden lg:flex items-center gap-1 text-sm font-semibold text-navy-700">
+      <a href="#categories" class="px-3 py-2 rounded-lg hover:bg-navy-50">Leistungen</a>
+      <a href="#news" class="px-3 py-2 rounded-lg hover:bg-navy-50">Aktuelles</a>
+      <button data-open="news" data-tab="rules" class="px-3 py-2 rounded-lg hover:bg-navy-50">Regeln</button>
+      <a href="#/gewerbe/register" class="px-3 py-2 rounded-lg hover:bg-navy-50">Register</a>
+      <a id="nav-staff" href="#/behoerde/start" class="hidden px-3 py-2 rounded-lg bg-navy-50 hover:bg-navy-100">🏛️ Behörde</a>
+    </nav>
+    <!-- Login-Bereich: wird per JS (renderAuthUI) befüllt -->
+    <div id="auth-area" class="flex shrink-0 items-center gap-2"></div>
+  </div>
+</header>
+<div id="approval-banner" class="hidden"></div>
+
+<main>
+<!-- ================= Hero ================= -->
+<section id="hero" class="relative overflow-hidden bg-gradient-to-br from-navy-900 via-navy-700 to-navy-500 text-white">
+  <div class="absolute inset-0 opacity-10" style="background-image:radial-gradient(circle at 20% 20%,#fff 0,transparent 40%),radial-gradient(circle at 80% 70%,#12b886 0,transparent 35%)"></div>
+  <div class="relative mx-auto max-w-7xl px-4 py-14 md:py-20 grid md:grid-cols-5 gap-10 items-center">
+    <div class="md:col-span-3">
+      <span class="inline-block rounded-full bg-accent-500/20 text-accent-100 px-3 py-1 text-xs font-semibold tracking-wide">Digital • Sofort • Ohne Wartezeit</span>
+      <h1 class="mt-4 text-3xl md:text-5xl font-extrabold leading-tight">Schnell, digital, unbürokratisch –<br><span class="text-accent-500">Ihr Online-Rathaus.</span></h1>
+      <p class="mt-4 text-lg text-navy-100 max-w-xl">Ausweis, Fahrzeug oder Gewerbe: Erledigen Sie Ihre Anliegen in wenigen Minuten, direkt hier – ohne Termin, ohne Ticket, ohne Warten auf einen Admin.</p>
+      <div class="mt-7 flex flex-wrap gap-3">
+        <button data-open="citizen" class="btn-primary text-base">🪪 Bürgerkarte erstellen</button>
+        <button data-open="vehicle" class="btn bg-white text-navy-700 hover:bg-navy-50 text-base">🚗 Fahrzeug anmelden</button>
+        <button data-open="business" class="btn bg-white/10 text-white border border-white/30 hover:bg-white/20 text-base">🏢 Gewerbe gründen</button>
+      </div>
+    </div>
+
+    <!-- Info-Karte rechts -->
+    <aside class="md:col-span-2">
+      <div class="rounded-2xl bg-white text-slate-800 p-6 shadow-2xl">
+        <h2 class="font-bold text-navy-700">So einfach geht’s</h2>
+        <ol class="mt-4 space-y-4 text-sm">
+          <li class="flex gap-3"><span class="h-7 w-7 shrink-0 rounded-full bg-accent-500 text-white grid place-items-center font-bold">1</span><span><b>Konto anlegen &amp; Charakter erstellen</b><br><span class="text-slate-500">Registrieren, dann Bürgerkarte für Ihre Spielfigur – 2 Minuten.</span></span></li>
+          <li class="flex gap-3"><span class="h-7 w-7 shrink-0 rounded-full bg-accent-500 text-white grid place-items-center font-bold">2</span><span><b>Fahrzeug oder Gewerbe anmelden</b><br><span class="text-slate-500">Kennzeichen &amp; Standort sofort erhalten.</span></span></li>
+          <li class="flex gap-3"><span class="h-7 w-7 shrink-0 rounded-full bg-accent-500 text-white grid place-items-center font-bold">3</span><span><b>Losfahren &amp; loslegen</b><br><span class="text-slate-500">Alles läuft ohne Admin-Wartezeit.</span></span></li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ================= Kategorien-Grid ================= -->
+<section id="categories" class="mx-auto max-w-7xl px-4 py-14">
+  <div class="flex items-end justify-between flex-wrap gap-2">
+    <div>
+      <h2 class="text-2xl md:text-3xl font-extrabold text-navy-700">Unsere Leistungen</h2>
+      <p class="mt-1 text-slate-600">Wählen Sie ein Anliegen. Die meisten Vorgänge sind sofort abgeschlossen.</p>
+    </div>
+  </div>
+
+  <div class="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- Kachel-Vorlage: data-open="<modal-id>" öffnet das passende Modal -->
+    <button data-open="citizen" class="group text-left rounded-2xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <div class="h-12 w-12 rounded-xl bg-navy-50 grid place-items-center text-2xl">🪪</div>
+      <h3 class="mt-4 text-lg font-bold text-navy-700">Bürgerservice &amp; Ausweise</h3>
+      <p class="mt-1 text-sm text-slate-600">Digitalen Personalausweis in 2 Minuten selbst erstellen – mit Live-Vorschau.</p>
+      <span class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent-700">Sofort erledigen <span class="transition group-hover:translate-x-1">→</span></span>
+    </button>
+
+    <button data-open="vehicle" class="group text-left rounded-2xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <div class="h-12 w-12 rounded-xl bg-navy-50 grid place-items-center text-2xl">🚗</div>
+      <h3 class="mt-4 text-lg font-bold text-navy-700">KFZ-Zulassungsstelle</h3>
+      <p class="mt-1 text-sm text-slate-600">Fahrzeug oder LKW eintragen und Kennzeichen automatisch erhalten.</p>
+      <span class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent-700">Sofort erledigen <span class="transition group-hover:translate-x-1">→</span></span>
+    </button>
+
+    <button data-open="business" class="group text-left rounded-2xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <div class="h-12 w-12 rounded-xl bg-navy-50 grid place-items-center text-2xl">🏢</div>
+      <h3 class="mt-4 text-lg font-bold text-navy-700">Gewerbe- &amp; Firmenportal</h3>
+      <p class="mt-1 text-sm text-slate-600">Gewerbe in 3 Schritten anmelden: Name, Branche, Standort auf der Karte.</p>
+      <span class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent-700">Sofort erledigen <span class="transition group-hover:translate-x-1">→</span></span>
+    </button>
+
+    <button data-open="career" class="group text-left rounded-2xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <div class="h-12 w-12 rounded-xl bg-navy-50 grid place-items-center text-2xl">💼</div>
+      <h3 class="mt-4 text-lg font-bold text-navy-700">Karriere &amp; Bewerbungen</h3>
+      <p class="mt-1 text-sm text-slate-600">Bewerbung für Polizei, Feuerwehr, Rettungsdienst oder Werkstatt einreichen.</p>
+      <span class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-navy-600">Bewerbung starten <span class="transition group-hover:translate-x-1">→</span></span>
+    </button>
+
+    <button data-open="news" class="group text-left rounded-2xl bg-white border border-slate-200 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <div class="h-12 w-12 rounded-xl bg-navy-50 grid place-items-center text-2xl">🗺️</div>
+      <h3 class="mt-4 text-lg font-bold text-navy-700">Stadt-Update &amp; News</h3>
+      <p class="mt-1 text-sm text-slate-600">Neuigkeiten zur Map und Stadtregeln.</p>
+      <span class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-navy-600">Aktuelles lesen <span class="transition group-hover:translate-x-1">→</span></span>
+    </button>
+
+    <button data-open="dashboard" class="group text-left rounded-2xl bg-gradient-to-br from-accent-50 to-white border border-accent-100 p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition">
+      <div class="h-12 w-12 rounded-xl bg-accent-500 text-white grid place-items-center text-2xl">📂</div>
+      <h3 class="mt-4 text-lg font-bold text-navy-700">Mein Bereich</h3>
+      <p class="mt-1 text-sm text-slate-600">Ihre Bürgerkarte, Fahrzeuge, Gewerbe und Bewerbungen auf einen Blick.</p>
+      <span class="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-accent-700">Öffnen <span class="transition group-hover:translate-x-1">→</span></span>
+    </button>
+  </div>
+</section>
+
+<!-- ================= Öffentliche Register (Teaser) ================= -->
+<section class="mx-auto max-w-7xl px-4 pb-14">
+  <div class="grid gap-5 md:grid-cols-2">
+    <a href="#/gewerbe/register" class="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-lg">
+      <div class="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-accent-50 text-3xl">📒</div>
+      <div><h3 class="font-bold text-navy-700">Gewerberegister</h3><p class="text-sm text-slate-600">Alle Betriebe der Stadt mit Telefonnummer, Standort und Öffnungszeiten – ohne Anmeldung einsehbar.</p></div>
+    </a>
+    <a href="#/news/verzeichnis" class="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-lg">
+      <div class="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-navy-50 text-3xl">☎️</div>
+      <div><h3 class="font-bold text-navy-700">Telefonverzeichnis</h3><p class="text-sm text-slate-600">Notruf, Rathaus, Zulassungsstelle und weitere Behörden auf einen Blick.</p></div>
+    </a>
+  </div>
+</section>
+
+<!-- ================= Aktuelles (Teaser) ================= -->
+<section id="news" class="bg-white border-y border-slate-200">
+  <div class="mx-auto max-w-7xl px-4 py-12">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-extrabold text-navy-700">Aktuelles aus Saarbrücken</h2>
+      <button data-open="news" class="text-sm font-semibold text-navy-600 hover:underline">Alle Meldungen →</button>
+    </div>
+    <div id="news-teaser" class="mt-6 grid gap-5 md:grid-cols-3"></div>
+  </div>
+</section>
+</main>
+
+<!-- ================= Service-Seiten (Router-Ansicht) ================= -->
+<section id="service-view" class="hidden">
+  <div class="bg-gradient-to-r from-navy-900 to-navy-600 text-white">
+    <div class="mx-auto max-w-7xl px-4 py-8">
+      <nav class="text-sm text-navy-200"><a href="#" class="hover:underline">Startseite</a> › <span id="sv-crumb"></span></nav>
+      <h1 id="sv-title" class="mt-2 text-2xl md:text-3xl font-extrabold"></h1>
+      <p id="sv-lead" class="mt-1 text-navy-100"></p>
+    </div>
+  </div>
+  <div class="mx-auto max-w-7xl px-4 py-8 grid gap-6 lg:grid-cols-[17rem_1fr]">
+    <aside class="space-y-5">
+      <nav id="sv-nav" class="flex lg:flex-col gap-1 overflow-x-auto rounded-2xl bg-white border border-slate-200 p-2 shadow-sm"></nav>
+      <div class="hidden lg:block rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
+        <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Weitere Bereiche</p>
+        <div id="sv-areas" class="mt-2 space-y-1 text-sm"></div>
+      </div>
+    </aside>
+    <div id="sv-content" class="rounded-2xl bg-white border border-slate-200 p-6 shadow-sm min-h-[26rem]"></div>
+  </div>
+</section>
+
+<!-- ================= Footer ================= -->
+<footer class="bg-navy-900 text-navy-100">
+  <div class="mx-auto max-w-7xl px-4 py-10 grid gap-8 md:grid-cols-3 text-sm">
+    <div>
+      <div class="flex items-center gap-3"><svg class="h-10 w-10"><use href="#crest"/></svg><span class="font-bold text-white text-lg">Stadt Saarbrücken</span></div>
+      <p class="mt-3 text-navy-200">Das Bürgerportal der Brick-Rigs-Rollenspiel-Community. Alle Inhalte sind fiktiv und dienen ausschließlich dem Spiel.</p>
+    </div>
+    <div>
+      <h3 class="font-semibold text-white">Schnellzugriff</h3>
+      <ul class="mt-3 space-y-1.5">
+        <li><button data-open="citizen" class="hover:underline">Bürgerkarte</button></li>
+        <li><button data-open="vehicle" class="hover:underline">Fahrzeug anmelden</button></li>
+        <li><button data-open="business" class="hover:underline">Gewerbe anmelden</button></li>
+        <li><button data-open="career" class="hover:underline">Bewerbungen</button></li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="font-semibold text-white">Rechtliches</h3>
+      <ul class="mt-3 space-y-1.5">
+        <li><button data-open="news" data-tab="rules" class="hover:underline">Stadtregeln</button></li>
+        <li><a href="#" class="hover:underline">Datenschutz (Platzhalter)</a></li>
+        <li><a href="#" class="hover:underline">Impressum (Platzhalter)</a></li>
+        <li><a href="polizei.html" class="hover:underline">Landespolizei Bayern (Website)</a></li>
+        <li><button id="btn-reset-global" class="hover:underline">Demo-Daten zurücksetzen</button></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-white/10 py-4 text-center text-xs text-navy-200">© <span id="year"></span> Bürgerportal Saarbrücken • Fiktives RP-Projekt, keine echte Behörde</div>
+</footer>
+
+<!-- ================= Modal-System ================= -->
+<div id="overlay" class="hidden fixed inset-0 z-50 items-start justify-center overflow-y-auto bg-navy-900/70 backdrop-blur-sm p-3 sm:p-6" aria-hidden="true">
+
+  <!-- ---------- Modal: Login / Registrierung ---------- -->
+  <section data-modal="auth" class="hidden w-full max-w-md my-4 rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-auth">
+    <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div><h2 id="t-auth" class="text-xl font-extrabold text-navy-700">🔐 Anmelden</h2><p class="text-sm text-slate-500">Ihr Konto speichert alle Charaktere und Anträge.</p></div>
+      <button data-close class="h-9 w-9 rounded-full hover:bg-slate-100 text-xl" aria-label="Schließen">✕</button>
+    </header>
+    <div class="flex gap-2 px-6 pt-4">
+      <button type="button" class="tab active" data-authtab="login">Anmelden</button>
+      <button type="button" class="tab" data-authtab="register">Konto erstellen</button>
+    </div>
+
+    <form id="form-login" class="space-y-4 p-6" novalidate>
+      <div><label class="label" for="l-user">Benutzername</label><input id="l-user" class="input" autocomplete="username" maxlength="24"></div>
+      <div><label class="label" for="l-pass">Passwort</label><input id="l-pass" type="password" class="input" autocomplete="current-password"></div>
+      <p id="login-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+      <button type="submit" class="btn-primary w-full">Anmelden</button>
+      <p class="text-center text-sm text-slate-500">Noch kein Konto? <button type="button" data-authtab="register" class="font-semibold text-navy-600 underline">Jetzt registrieren</button></p>
+    </form>
+
+    <form id="form-register" class="hidden space-y-4 p-6" novalidate>
+      <div><label class="label" for="r-user">Benutzername *</label><input id="r-user" class="input" autocomplete="username" maxlength="24" placeholder="z. B. dein Discord-/Spielername"><p class="hint">3–24 Zeichen: Buchstaben, Zahlen, _ . -</p></div>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div><label class="label" for="r-pass">Passwort *</label><input id="r-pass" type="password" class="input" autocomplete="new-password"></div>
+        <div><label class="label" for="r-pass2">Wiederholen *</label><input id="r-pass2" type="password" class="input" autocomplete="new-password"></div>
+      </div>
+      <details class="rounded-lg border border-slate-200 p-3">
+        <summary class="cursor-pointer text-sm font-semibold text-navy-700">Ich bin Verwaltungsmitarbeiter</summary>
+        <label class="label mt-3" for="r-code">Dienstcode</label>
+        <input id="r-code" class="input uppercase" autocomplete="off" placeholder="Nur für Verwaltungsfachangestellte">
+        <p class="hint">Demo-Dienstcode: <b>RATHAUS-2026</b> (später vergibt die Serverleitung die Rolle).</p>
+      </details>
+      <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="r-rules" class="mt-1"> Ich akzeptiere die <button type="button" data-open="news" data-tab="rules" class="font-semibold text-navy-600 underline">Stadtregeln</button>.</label>
+      <p class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">⚠️ Prototyp: Daten bleiben nur in Ihrem Browser. Bitte kein echtes Passwort verwenden, das Sie anderswo nutzen.</p>
+      <p id="register-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+      <button type="submit" class="btn-primary w-full">Konto erstellen</button>
+    </form>
+  </section>
+
+  <!-- ---------- Modal: Bürgerkarte ---------- -->
+  <section data-modal="citizen" class="hidden w-full max-w-5xl my-4 rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-citizen">
+    <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div>
+        <h2 id="t-citizen" class="text-xl font-extrabold text-navy-700">🪪 Bürgerkarte erstellen</h2>
+        <p class="text-sm text-slate-500">Dauer: ca. 2 Minuten • <span id="citizen-limit" class="font-semibold text-navy-700"></span></p>
+      </div>
+      <button data-close class="h-9 w-9 rounded-full hover:bg-slate-100 text-xl" aria-label="Schließen">✕</button>
+    </header>
+    <div class="grid gap-8 p-6 lg:grid-cols-2">
+      <form id="form-citizen" class="space-y-4" novalidate>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label" for="c-first">Vorname *</label><input id="c-first" name="first" class="input" placeholder="Max" maxlength="24" required></div>
+          <div><label class="label" for="c-last">Nachname *</label><input id="c-last" name="last" class="input" placeholder="Mustermann" maxlength="24" required></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label" for="c-birth">Geburtsdatum *</label><input id="c-birth" name="birth" type="date" class="input" required><p class="hint">Mindestalter der Spielfigur: 16 Jahre.</p></div>
+          <div><label class="label" for="c-sex">Geschlecht</label>
+            <select id="c-sex" name="sex" class="input"><option value="M">Männlich</option><option value="W">Weiblich</option><option value="D">Divers</option></select></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label" for="c-city">Wohnbezirk</label>
+            <select id="c-city" name="district" class="input">
+              <option>Saarbrücken-Mitte</option><option>Hafenviertel</option><option>Altstadt</option><option>Industriegebiet</option><option>Siedlung Nord</option>
+            </select></div>
+          <div><label class="label" for="c-user">Spielername *</label><input id="c-user" name="username" class="input" placeholder="Steam-/Discord-Name" maxlength="32" required></div>
+        </div>
+        <div>
+          <label class="label" for="c-photourl">Foto</label>
+          <input id="c-photourl" name="photoUrl" class="input" placeholder="Bild-URL einfügen (https://…)" >
+          <div class="mt-2 flex items-center gap-3 text-sm text-slate-500"><span>oder</span>
+            <input id="c-photofile" type="file" accept="image/*" class="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-navy-50 file:px-3 file:py-2 file:font-semibold file:text-navy-700 hover:file:bg-navy-100">
+          </div>
+        </div>
+        <p id="citizen-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+        <div class="flex flex-wrap gap-3 pt-2">
+          <button type="submit" class="btn-primary">Bürgerkarte ausstellen</button>
+          <button type="button" data-close class="btn-secondary">Abbrechen</button>
+        </div>
+      </form>
+
+      <!-- Live-Vorschau -->
+      <div class="lg:sticky lg:top-4 self-start">
+        <p class="label">Vorschau</p>
+        <div id="id-card" class="relative overflow-hidden rounded-2xl p-5 text-white shadow-xl bg-gradient-to-br from-navy-900 via-navy-700 to-navy-500">
+          <div class="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-accent-500/20"></div>
+          <div class="relative flex items-center justify-between">
+            <div class="flex items-center gap-2"><svg class="h-9 w-9"><use href="#crest"/></svg>
+              <div class="leading-tight"><div class="text-[10px] uppercase tracking-widest text-navy-200">Stadt Saarbrücken</div><div class="font-extrabold tracking-wide">BÜRGERKARTE</div></div></div>
+            <div class="text-right text-[10px] text-navy-200">Personalausweis<br><span class="font-mono text-xs text-white" id="pv-id">NS-XXXXXXXX</span></div>
+          </div>
+          <div class="relative mt-4 flex gap-4">
+            <div class="h-36 w-28 shrink-0 overflow-hidden rounded-lg border-2 border-white/40 bg-navy-800 grid place-items-center">
+              <img id="pv-photo" alt="Foto" class="hidden h-full w-full object-cover">
+              <span id="pv-photo-ph" class="text-4xl opacity-50">👤</span>
+            </div>
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm content-start min-w-0">
+              <div class="col-span-2"><dt class="text-[10px] uppercase text-navy-200">Name</dt><dd id="pv-name" class="font-bold text-lg leading-tight truncate">Mustermann, Max</dd></div>
+              <div><dt class="text-[10px] uppercase text-navy-200">Geboren</dt><dd id="pv-birth" class="font-semibold">01.01.2000</dd></div>
+              <div><dt class="text-[10px] uppercase text-navy-200">Geschlecht</dt><dd id="pv-sex" class="font-semibold">M</dd></div>
+              <div><dt class="text-[10px] uppercase text-navy-200">Wohnbezirk</dt><dd id="pv-district" class="font-semibold truncate">Saarbrücken-Mitte</dd></div>
+              <div><dt class="text-[10px] uppercase text-navy-200">Gültig bis</dt><dd id="pv-valid" class="font-semibold">—</dd></div>
+            </dl>
+          </div>
+          <div class="relative mt-4 rounded bg-black/20 px-2 py-1 font-mono text-[10px] tracking-widest text-navy-100 overflow-hidden whitespace-nowrap" id="pv-mrz">IDD&lt;&lt;MUSTERMANN&lt;&lt;MAX&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</div>
+        </div>
+        <div id="citizen-success" class="hidden mt-4 rounded-xl border border-accent-100 bg-accent-50 p-4 text-sm">
+          <p class="font-bold text-accent-700">✅ Bürgerkarte ausgestellt!</p>
+          <p class="mt-1 text-slate-700">Ihre Bürger-ID: <b id="success-id" class="font-mono"></b>. Sie können nun Fahrzeuge und Gewerbe anmelden.</p>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button id="btn-download-card" class="btn-navy text-sm">⬇️ Als Bild speichern</button>
+            <button data-open="vehicle" class="btn-secondary text-sm">🚗 Fahrzeug anmelden</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Modal: KFZ ---------- -->
+  <section data-modal="vehicle" class="hidden w-full max-w-4xl my-4 rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-vehicle">
+    <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div><h2 id="t-vehicle" class="text-xl font-extrabold text-navy-700">🚗 KFZ-Zulassungsstelle</h2><p class="text-sm text-slate-500">Fahrzeug anmelden &amp; Kennzeichen erhalten – sofort</p></div>
+      <button data-close class="h-9 w-9 rounded-full hover:bg-slate-100 text-xl" aria-label="Schließen">✕</button>
+    </header>
+    <div class="grid gap-8 p-6 lg:grid-cols-2">
+      <form id="form-vehicle" class="space-y-4" novalidate>
+        <div id="vehicle-owner-warning" class="hidden rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+          ⚠️ Noch keine Bürgerkarte gefunden. <button type="button" data-open="citizen" class="font-semibold underline">Jetzt erstellen</button>
+        </div>
+        <div><label class="label" for="v-owner">Halter (Charakter) *</label><select id="v-owner" class="input" required></select></div>
+        <div>
+          <span class="label">Fahrzeugart *</span>
+          <div id="v-types" class="grid grid-cols-3 gap-2">
+            <button type="button" class="choice active" data-value="PKW"><div class="text-xl">🚗</div><div class="text-sm font-semibold">PKW</div></button>
+            <button type="button" class="choice" data-value="LKW"><div class="text-xl">🚚</div><div class="text-sm font-semibold">LKW</div></button>
+            <button type="button" class="choice" data-value="Transporter"><div class="text-xl">🚐</div><div class="text-sm font-semibold">Transporter</div></button>
+            <button type="button" class="choice" data-value="Bus"><div class="text-xl">🚌</div><div class="text-sm font-semibold">Bus</div></button>
+            <button type="button" class="choice" data-value="Motorrad"><div class="text-xl">🏍️</div><div class="text-sm font-semibold">Motorrad</div></button>
+            <button type="button" class="choice" data-value="Einsatzfahrzeug"><div class="text-xl">🚓</div><div class="text-sm font-semibold">Einsatz</div></button>
+          </div>
+          <p id="v-einsatz-note" class="hidden mt-2 rounded-lg bg-navy-50 px-3 py-2 text-sm text-navy-700">ℹ️ Einsatzfahrzeuge werden nicht im Self-Service zugelassen. Bitte bewerben Sie sich über <button type="button" data-open="career" class="font-semibold underline">Karriere &amp; Bewerbungen</button>.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="label" for="v-model">Modell / Bezeichnung *</label><input id="v-model" class="input" placeholder="z. B. Volvo FH16" maxlength="32" required></div>
+          <div><label class="label" for="v-color">Farbe</label><input id="v-color" class="input" placeholder="z. B. Blau" maxlength="20"></div>
+        </div>
+        <div>
+          <label class="label" for="v-plate">Wunschkennzeichen (optional)</label>
+          <div class="flex gap-2">
+            <input id="v-plate" class="input uppercase" placeholder="z. B. AB 123" maxlength="8">
+            <button type="button" id="btn-random-plate" class="btn-secondary whitespace-nowrap">🎲 Zufällig</button>
+          </div>
+          <p class="hint">Format: 1–2 Buchstaben + 1–4 Ziffern. Der Stadtcode <b>NS</b> wird automatisch vorangestellt.</p>
+        </div>
+        <p id="vehicle-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" id="btn-vehicle-submit" class="btn-primary">Fahrzeug anmelden</button>
+          <button type="button" data-close class="btn-secondary">Abbrechen</button>
+        </div>
+      </form>
+
+      <div class="self-start">
+        <p class="label">Ihr Kennzeichen</p>
+        <div class="rounded-2xl bg-slate-100 p-6 grid place-items-center">
+          <div class="plate flex h-24 w-full max-w-sm overflow-hidden rounded-lg border-4 border-slate-900 bg-white shadow-lg">
+            <div class="flex w-12 flex-col items-center justify-center bg-blue-700 text-white"><span class="text-[10px]">★★★</span><span class="text-lg font-bold">D</span></div>
+            <div class="flex flex-1 items-center justify-center gap-2 text-5xl font-bold text-slate-900">
+              <span>NS</span>
+              <span class="h-9 w-9 rounded-full border-2 border-slate-400 bg-gradient-to-br from-accent-500 to-navy-500"></span>
+              <span id="plate-rest">AB 123</span>
+            </div>
+          </div>
+        </div>
+        <div id="vehicle-success" class="hidden mt-4 rounded-xl border border-accent-100 bg-accent-50 p-4 text-sm">
+          <p class="font-bold text-accent-700">✅ Fahrzeug zugelassen</p>
+          <p class="mt-1 text-slate-700">Kennzeichen <b id="v-success-plate" class="font-mono"></b> wurde Ihnen zugeteilt. Bitte bauen Sie das Schild an Ihr Fahrzeug an.</p>
+        </div>
+        <ul class="mt-4 space-y-1.5 text-sm text-slate-600">
+          <li>✔ Zulassung in Sekunden – ohne Admin</li>
+          <li>✔ Jedes Kennzeichen ist einmalig</li>
+          <li>✔ Mehrere Fahrzeuge pro Bürger möglich</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Modal: Gewerbe ---------- -->
+  <section data-modal="business" class="hidden w-full max-w-4xl my-4 rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-business">
+    <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div><h2 id="t-business" class="text-xl font-extrabold text-navy-700">🏢 Gewerbe- &amp; Firmenportal</h2><p class="text-sm text-slate-500">Gewerbe anmelden in 3 Schritten</p></div>
+      <button data-close class="h-9 w-9 rounded-full hover:bg-slate-100 text-xl" aria-label="Schließen">✕</button>
+    </header>
+
+    <!-- Fortschrittsanzeige -->
+    <ol id="biz-steps" class="flex items-center gap-2 px-6 pt-5 text-sm font-semibold">
+      <li data-step="1" class="flex items-center gap-2"><span class="h-7 w-7 rounded-full grid place-items-center bg-accent-600 text-white">1</span>Firma</li>
+      <li class="h-px flex-1 bg-slate-300"></li>
+      <li data-step="2" class="flex items-center gap-2 text-slate-400"><span class="h-7 w-7 rounded-full grid place-items-center bg-slate-200 text-slate-600">2</span>Branche</li>
+      <li class="h-px flex-1 bg-slate-300"></li>
+      <li data-step="3" class="flex items-center gap-2 text-slate-400"><span class="h-7 w-7 rounded-full grid place-items-center bg-slate-200 text-slate-600">3</span>Standort</li>
+    </ol>
+
+    <form id="form-business" class="p-6" novalidate>
+      <!-- Schritt 1 -->
+      <div data-bstep="1" class="space-y-4">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div><label class="label" for="b-name">Firmenname *</label><input id="b-name" class="input" placeholder="z. B. Saarbrücken Logistik" maxlength="40"></div>
+          <div><label class="label" for="b-owner">Inhaber (Charakter) *</label><select id="b-owner" class="input"></select></div>
+        </div>
+        <div><label class="label" for="b-form">Rechtsform</label>
+          <select id="b-form" class="input sm:w-1/2"><option>Einzelunternehmen</option><option>GbR</option><option>UG (haftungsbeschränkt)</option><option>GmbH</option></select></div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div><label class="label" for="b-phone">Telefonnummer (öffentlich) *</label>
+            <div class="flex gap-2"><input id="b-phone" class="input" placeholder="555-1234" maxlength="8"><button type="button" id="btn-random-phone" class="btn-secondary whitespace-nowrap" title="Zufällige freie Nummer">🎲</button></div>
+            <p class="hint">Format 555-1234. Erscheint im Gewerberegister.</p></div>
+          <div><label class="label" for="b-hours">Öffnungszeiten</label><input id="b-hours" class="input" placeholder="Mo–Fr 08–18 Uhr" maxlength="40"></div>
+        </div>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="b-listed" checked class="mt-1"> Im öffentlichen Gewerberegister eintragen (mit Telefonnummer)</label>
+        <div><label class="label" for="b-desc">Kurzbeschreibung (optional)</label><textarea id="b-desc" rows="3" class="input" maxlength="200" placeholder="Was bietet Ihre Firma an?"></textarea></div>
+      </div>
+      <!-- Schritt 2 -->
+      <div data-bstep="2" class="hidden">
+        <span class="label">Branche wählen *</span>
+        <div id="b-industries" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+      </div>
+      <!-- Schritt 3 -->
+      <div data-bstep="3" class="hidden">
+        <span class="label">Standort auf der Stadtkarte wählen *</span>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-2">
+          <svg id="biz-map" viewBox="0 0 640 400" class="w-full h-auto rounded-lg" role="img" aria-label="Stadtkarte mit Gewerbeflächen"></svg>
+        </div>
+        <div class="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+          <span class="flex items-center gap-1"><i class="inline-block h-3 w-3 rounded bg-blue-200 border border-navy-500"></i> frei</span>
+          <span class="flex items-center gap-1"><i class="inline-block h-3 w-3 rounded bg-slate-200 border border-slate-400"></i> vergeben</span>
+          <span class="flex items-center gap-1"><i class="inline-block h-3 w-3 rounded bg-accent-500"></i> Ihre Auswahl</span>
+          <span id="b-plot-info" class="ml-auto font-semibold text-navy-700">Noch kein Standort gewählt</span>
+        </div>
+        <label class="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" id="b-rules" class="mt-1"> Ich habe die Stadtregeln gelesen und führe mein Gewerbe fair und im Rahmen des Rollenspiels.</label>
+      </div>
+
+      <p id="business-error" class="hidden mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+      <div id="business-success" class="hidden mt-4 rounded-xl border border-accent-100 bg-accent-50 p-4 text-sm"></div>
+
+      <div class="mt-6 flex items-center justify-between">
+        <button type="button" id="btn-biz-back" class="btn-secondary invisible">← Zurück</button>
+        <button type="button" id="btn-biz-next" class="btn-primary">Weiter →</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ---------- Modal: Karriere ---------- -->
+  <section data-modal="career" class="hidden w-full max-w-4xl my-4 rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-career">
+    <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div><h2 id="t-career" class="text-xl font-extrabold text-navy-700">💼 Karriere &amp; Bewerbungen</h2><p class="text-sm text-slate-500">Für Stellen mit manueller Prüfung • Antwort meist innerhalb von 48 Stunden</p></div>
+      <button data-close class="h-9 w-9 rounded-full hover:bg-slate-100 text-xl" aria-label="Schließen">✕</button>
+    </header>
+    <div class="p-6 grid gap-8 lg:grid-cols-3">
+      <form id="form-career" class="lg:col-span-2 space-y-4" novalidate>
+        <div>
+          <span class="label">Behörde / Fraktion *</span>
+          <div id="k-factions" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+          <p id="k-faction-desc" class="hint"></p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div><label class="label" for="k-name">Name der Spielfigur *</label><input id="k-name" class="input" maxlength="48"></div>
+          <div><label class="label" for="k-discord">Discord-Name *</label><input id="k-discord" class="input" placeholder="name#0000 oder @name" maxlength="40"></div>
+          <div><label class="label" for="k-age">Alter (real) *</label><input id="k-age" type="number" min="12" max="99" class="input"></div>
+          <div><label class="label" for="k-exp">RP-Erfahrung</label>
+            <select id="k-exp" class="input"><option>Neuling</option><option>1–6 Monate</option><option>6–12 Monate</option><option>Mehr als 1 Jahr</option></select></div>
+        </div>
+        <div>
+          <label class="label" for="k-text">Warum möchten Sie dort arbeiten? *</label>
+          <textarea id="k-text" rows="5" class="input" maxlength="1000" placeholder="Erzählen Sie uns kurz etwas über sich und Ihre Motivation (mind. 80 Zeichen)"></textarea>
+          <p class="hint"><span id="k-count">0</span> / 1000 Zeichen</p>
+        </div>
+        <label class="flex items-start gap-2 text-sm"><input type="checkbox" id="k-rules" class="mt-1"> Ich akzeptiere die Stadtregeln und weiß, dass meine Bewerbung manuell geprüft wird.</label>
+        <p id="career-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"></p>
+        <div id="career-success" class="hidden rounded-xl border border-accent-100 bg-accent-50 p-4 text-sm"></div>
+        <button type="submit" class="btn-primary">Bewerbung absenden</button>
+      </form>
+
+      <aside class="space-y-4">
+        <div class="rounded-xl border border-slate-200 p-4">
+          <h3 class="font-bold text-navy-700">Status prüfen</h3>
+          <p class="text-xs text-slate-500">Geben Sie Ihre Bewerbungsnummer ein.</p>
+          <div class="mt-3 flex gap-2"><input id="k-lookup" class="input uppercase" placeholder="B-XXXXXX"><button id="btn-lookup" class="btn-navy">OK</button></div>
+          <p id="k-lookup-result" class="mt-3 text-sm"></p>
+        </div>
+        <div class="rounded-xl bg-navy-50 p-4 text-sm text-navy-700">
+          <b>Gut zu wissen</b>
+          <ul class="mt-2 list-disc pl-5 space-y-1"><li>Nur eine offene Bewerbung pro Fraktion</li><li>Antwort per Discord-Nachricht</li><li>Fahrzeug- und Gewerbeanmeldung brauchen keine Bewerbung</li></ul>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ---------- Modal: News / Regeln / Status ---------- -->
+  <section data-modal="news" class="hidden w-full max-w-4xl my-4 rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="t-news">
+    <header class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+      <div><h2 id="t-news" class="text-xl font-extrabold text-navy-700">🗺️ Stadt-Update</h2><p class="text-sm text-slate-500">News und Regeln</p></div>
+      <button data-close class="h-9 w-9 rounded-full hover:bg-slate-100 text-xl" aria-label="Schließen">✕</button>
+    </header>
+    <div class="px-6 pt-4 flex gap-2" id="news-tabs">
+      <button class="tab active" data-tab="news">📰 News</button>
+      <button class="tab" data-tab="rules">📜 Regeln</button>
+    </div>
+    <div class="p-6">
+      <div data-tabpanel="news" id="news-list" class="space-y-4"></div>
+      <div data-tabpanel="rules" class="hidden space-y-3" id="rules-list"></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Toast-Benachrichtigungen -->
+<div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
+
+<script>
+/* =====================================================================
+   BÜRGERPORTAL SAARBRÜCKEN – Frontend-Prototyp
+   Aufbau:
+     1) CONFIG        – zentrale Einstellungen
+     2) Store/API     – Datenschicht (aktuell localStorage, später Supabase)
+     3) Helfer        – Utils, Toasts, Modal-System
+     4) Module        – Bürgerkarte, KFZ, Gewerbe, Karriere, News, Dashboard
+     5) Init
+   ===================================================================== */
+
+/* ------------------------------------------------------------------
+   1) CONFIG
+   ------------------------------------------------------------------ */
+const CONFIG = {
+  CITY: 'Saarbrücken',
+  PLATE_PREFIX: 'NS',
+  MIN_AGE_CHARACTER: 16,
+  MAX_CHARACTERS: 3,            // Charaktere pro Konto
+  REQUIRE_APPROVAL: true,       // neue Konten müssen von der Verwaltung freigeschaltet werden
+  STAFF_CODE: 'RATHAUS-2026',   // DEMO: Dienstcode für Verwaltungs-Konten (später: Rolle in Supabase)
+  // 🔌 SUPABASE (später):
+  // SUPABASE_URL: 'https://xxxx.supabase.co',
+  // SUPABASE_ANON_KEY: 'eyJ...',
+  USE_SUPABASE: false
+};
+
+/* Beispiel für spätere Supabase-Initialisierung:
+   (Script-Tag für https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2 im HTML-Head einbinden)
+   const supabase = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+*/
+
+/* ------------------------------------------------------------------
+   Stammdaten (später ggf. aus Supabase-Tabellen laden)
+   ------------------------------------------------------------------ */
+const INDUSTRIES = [
+  { id:'transport', icon:'🚚', name:'Transport & Logistik' },
+  { id:'gastro',    icon:'🍔', name:'Gastronomie' },
+  { id:'werkstatt', icon:'🔧', name:'Autowerkstatt' },
+  { id:'handel',    icon:'🛒', name:'Einzelhandel' },
+  { id:'bau',       icon:'🏗️', name:'Bau & Handwerk' },
+  { id:'taxi',      icon:'🚕', name:'Taxi & Personenbeförderung' },
+  { id:'service',   icon:'💼', name:'Dienstleistung' },
+  { id:'sonstige',  icon:'✨', name:'Sonstiges' }
+];
+
+const FACTIONS = [
+  { id:'polizei',  icon:'🚓', name:'Polizei',          desc:'Streifendienst, Verkehrskontrollen und Ermittlungen. Fair-RP und Teamarbeit sind Pflicht.' },
+  { id:'feuerwehr',icon:'🚒', name:'Feuerwehr',        desc:'Brandbekämpfung, technische Hilfe und Rettung bei Unfällen.' },
+  { id:'rettung',  icon:'🚑', name:'Rettungsdienst',   desc:'Medizinische Erstversorgung und Krankentransporte.' },
+  { id:'werkstatt',icon:'🔧', name:'Städt. Werkstatt', desc:'Pannenhilfe, Abschleppdienst und Fahrzeugreparatur im Auftrag der Stadt.' },
+  { id:'verwaltung',icon:'🏛️', name:'Stadtverwaltung', desc:'Unterstützung im Rathaus, Ordnungsamt und Bürgerservice.' }
+];
+
+// Gewerbeflächen für die Standort-Karte (x/y/w/h im SVG-Koordinatensystem)
+const PLOTS = [
+  { id:'G-01', name:'Hafenstraße 12',   x:30,  y:30,  w:120, h:90 },
+  { id:'G-02', name:'Hafenstraße 18',   x:165, y:30,  w:120, h:90 },
+  { id:'G-03', name:'Marktplatz 1',     x:345, y:30,  w:120, h:90 },
+  { id:'G-04', name:'Marktplatz 5',     x:480, y:30,  w:130, h:90 },
+  { id:'G-05', name:'Industrieweg 3',   x:30,  y:210, w:120, h:90 },
+  { id:'G-06', name:'Industrieweg 9',   x:165, y:210, w:120, h:90 },
+  { id:'G-07', name:'Gewerbering 2',    x:345, y:210, w:120, h:90 },
+  { id:'G-08', name:'Gewerbering 8',    x:480, y:210, w:130, h:90 }
+];
+
+// Startdaten (werden beim ersten Laden einmalig in den Speicher kopiert → Behörden können sie verwalten)
+const SEED_BUSINESSES = [
+  { regNo:'GW-2025-0001', name:'Hafen Logistik GmbH', owner:'Klaus Hafner', ownerCharId:null, accountId:null, legalForm:'GmbH', industry:'transport', plotId:'G-01', plotName:'Hafenstraße 12', phone:'555-0101', hours:'Mo–Fr 06–18 Uhr', description:'Container- und Stückguttransporte im gesamten Stadtgebiet.', listed:true, status:'aktiv', staff:[], notes:[], createdAt:'2025-03-02T10:00:00.000Z' },
+  { regNo:'GW-2025-0002', name:'Bistro am Markt', owner:'Lena Marx', ownerCharId:null, accountId:null, legalForm:'Einzelunternehmen', industry:'gastro', plotId:'G-03', plotName:'Marktplatz 1', phone:'555-0103', hours:'Di–So 10–22 Uhr', description:'Frühstück, Mittagstisch und Lieferservice am Marktplatz.', listed:true, status:'aktiv', staff:[], notes:[], createdAt:'2025-04-12T10:00:00.000Z' },
+  { regNo:'GW-2025-0003', name:'Werkstatt Müller', owner:'Jonas Müller', ownerCharId:null, accountId:null, legalForm:'GbR', industry:'werkstatt', plotId:'G-06', plotName:'Industrieweg 9', phone:'555-0106', hours:'Mo–Sa 07–19 Uhr', description:'Reparaturen, Pannenhilfe und Abschleppdienst.', listed:true, status:'aktiv', staff:[], notes:[], createdAt:'2025-06-20T10:00:00.000Z' }
+];
+const SEED_VEHICLES = [
+  { id:'S-1', plate:'NS AB 123', type:'LKW',         model:'Volvo FH16', color:'Blau', owner:'Klaus Hafner', ownerCharId:null, accountId:null, citizenId:null, status:'ok', createdAt:'2025-03-03T10:00:00.000Z' },
+  { id:'S-2', plate:'NS KT 7',   type:'PKW',         model:'Taxi Crown', color:'Gelb', owner:'Taxi Saarbrücken', ownerCharId:null, accountId:null, citizenId:null, status:'ok', createdAt:'2025-03-04T10:00:00.000Z' },
+  { id:'S-3', plate:'NS MX 420', type:'Transporter', model:'Sprinter',   color:'Weiß', owner:'Lena Marx', ownerCharId:null, accountId:null, citizenId:null, status:'ok', createdAt:'2025-04-13T10:00:00.000Z' }
+];
+
+const NEWS = [
+  { id:1, date:'2026-11-10', tag:'Neustart',  title:'Willkommen zurück in Saarbrücken!', text:'Nach einem Jahr Pause startet die Stadt neu. Das alte Ticket- und Wirtschaftssystem ist abgeschafft – alles läuft jetzt schneller und freier.' },
+  { id:2, date:'2026-11-10', tag:'Service',   title:'Neues Self-Service-Portal ist online', text:'Bürgerkarte, Fahrzeugzulassung und Gewerbeanmeldung erledigen Sie ab sofort in wenigen Minuten – ohne Admin-Wartezeit.' },
+  { id:3, date:'2026-11-09', tag:'Map',       title:'Kartenupdate: Neues Gewerbegebiet', text:'Am Hafen und am Marktplatz stehen neue Gewerbeflächen bereit. Sichern Sie sich Ihren Standort direkt im Portal.' },
+  { id:4, date:'2026-11-08', tag:'Regeln',    title:'Stadtregeln überarbeitet', text:'Die Regeln wurden gestrafft und vereinfacht. Das Wichtigste: Fair-RP, Respekt und angemeldete Fahrzeuge.' }
+];
+
+const RULES = [
+  { t:'1. Respekt & Fairness',  d:'Wir gehen freundlich miteinander um. Beleidigungen, Diskriminierung und Mobbing werden nicht geduldet.' },
+  { t:'2. Fair-RP',             d:'Kein Rammen ohne Grund (VDM/RDM), kein Metagaming. Handlungen müssen zum Rollenspiel passen.' },
+  { t:'3. Fahrzeuge anmelden',  d:'Fahrzeuge im Straßenverkehr benötigen ein gültiges Kennzeichen aus der Zulassungsstelle.' },
+  { t:'4. Gewerbe',             d:'Jedes Gewerbe benötigt einen Standort. Inaktive Gewerbe können nach längerer Zeit wieder freigegeben werden.' },
+  { t:'5. Notruf & Einsatzkräfte', d:'Einsatzkräften ist Folge zu leisten. Notrufe werden nur bei echten RP-Notfällen abgesetzt.' },
+  { t:'6. Entscheidungen der Teamleitung', d:'Bei Konflikten entscheidet die Serverleitung. Beschwerden bitte sachlich im Discord vorbringen.' }
+];
+
+/* ------------------------------------------------------------------
+   2) STORE & API  (hier später Supabase anbinden!)
+   ------------------------------------------------------------------
+   Alle Seiten-Module sprechen NUR mit `PortalAPI`. Wenn du Supabase
+   anbindest, ersetzt du die Funktionen unten – der Rest bleibt gleich.
+   ------------------------------------------------------------------ */
+const Store = {
+  get(key, fallback) {
+    try { const v = JSON.parse(localStorage.getItem('np_' + key)); return v ?? fallback; }
+    catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem('np_' + key, JSON.stringify(value)); return true; }
+    catch { toast('Speicher voll – bitte ein kleineres Foto verwenden.', 'error'); return false; }
+  },
+  clear() { Object.keys(localStorage).filter(k => k.startsWith('np_')).forEach(k => localStorage.removeItem(k)); }
+};
+
+const sleep = ms => new Promise(r => setTimeout(r, ms)); // simuliert Netzwerk-Latenz
+
+Store.del = key => { try { localStorage.removeItem('np_' + key); } catch {} };
+
+/* ---------- Konten, Sitzung, Rollen ----------
+   🔌 SUPABASE (später): supabase.auth.signUp / signInWithPassword / signOut.
+      Die Rolle (buerger | verwaltung) kommt dann aus einer Tabelle `profiles`.
+      RLS-Idee: Bürger sehen/ändern nur Zeilen mit account_id = auth.uid(); Verwaltung darf alles lesen.
+   ⚠️ DEMO: Passwörter liegen hier nur gehasht im Browser (localStorage). Für das echte System ist Supabase Auth Pflicht. */
+async function hashPw(salt, pw) {
+  const data = new TextEncoder().encode(salt + '::' + pw);
+  if (window.crypto && crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  let h = 5381; for (const b of data) h = ((h << 5) + h + b) >>> 0;   // Fallback ohne Secure Context (unsicher, nur Demo)
+  return 'x' + h.toString(16);
+}
+
+const Auth = {
+  account() { const s = Store.get('session', null); return s ? (Store.get('accounts', []).find(a => a.id === s.accountId) || null) : null; },
+  status(a = this.account()) { return a ? (a.status || 'approved') : null; },          // pending | approved | rejected
+  approved() { return this.status() === 'approved'; },
+  need() {
+    const a = this.account(); if (!a) throw new Error('Bitte melden Sie sich an, um diesen Dienst zu nutzen.');
+    const st = this.status(a);
+    if (st === 'pending') throw new Error('Ihr Konto wurde noch nicht von der Verwaltung freigeschaltet. Bitte haben Sie etwas Geduld.');
+    if (st === 'rejected') throw new Error('Ihr Konto wurde von der Verwaltung abgelehnt.');
+    return a;
+  },
+  chars() { const a = this.account(); return a ? Store.get('characters', []).filter(c => c.accountId === a.id) : []; },
+  active() { const cs = this.chars(), s = Store.get('session', null); return cs.find(c => c.id === (s && s.charId)) || cs[0] || null; },
+  staff() { const a = this.account(); return !!a && a.role === 'verwaltung'; },
+  needStaff() { if (!this.staff()) throw new Error('Kein Zugriff: nur für Verwaltungsmitarbeiter.'); }
+};
+
+const randomPhone = () => '555-' + (Math.floor(Math.random() * 9000) + 1000);
+const fullNameOf = c => `${c.first} ${c.last}`;
+
+/* Startdaten: werden einmalig in den Speicher kopiert, damit Register und Behörde etwas zeigen */
+function ensureSeed() {
+  if (Store.get('seeded_v3', false)) return;
+  Store.set('businesses', [...SEED_BUSINESSES, ...Store.get('businesses', [])]);
+  Store.set('vehicles', [...SEED_VEHICLES, ...Store.get('vehicles', [])]);
+  Store.set('seeded_v3', true);
+}
+
+/* Löscht einen Charakter samt allem, was an ihm hängt */
+function purgeCharacter(charId) {
+  const regs = Store.get('businesses', []).filter(b => b.ownerCharId === charId).map(b => b.regNo);
+  Store.set('businesses', Store.get('businesses', []).filter(b => b.ownerCharId !== charId));
+  Store.set('jobs', Store.get('jobs', []).filter(j => !regs.includes(j.regNo)));
+  Store.set('vehicles', Store.get('vehicles', []).filter(v => v.ownerCharId !== charId));
+  Store.set('applications', Store.get('applications', []).filter(a => a.charId !== charId));
+  const lic = Store.get('licenses', {}); delete lic[charId]; Store.set('licenses', lic);
+  Store.set('characters', Store.get('characters', []).filter(c => c.id !== charId));
+}
+
+const PortalAPI = {
+  /* ===== Konto ===== 🔌 Tabelle: profiles (id, username, role) */
+  currentAccount() { return Auth.account(); },
+  async register({ username, password, staffCode }) {
+    await sleep(500);
+    username = (username || '').trim();
+    if (!/^[A-Za-z0-9_.-]{3,24}$/.test(username)) throw new Error('Benutzername: 3–24 Zeichen (Buchstaben, Zahlen, _ . -).');
+    if ((password || '').length < 6) throw new Error('Das Passwort muss mindestens 6 Zeichen lang sein.');
+    const list = Store.get('accounts', []);
+    if (list.some(a => a.username.toLowerCase() === username.toLowerCase())) throw new Error('Dieser Benutzername ist bereits vergeben.');
+    let role = 'buerger';
+    if (staffCode && staffCode.trim()) {
+      if (staffCode.trim().toUpperCase() !== CONFIG.STAFF_CODE) throw new Error('Der Dienstcode ist ungültig.');
+      role = 'verwaltung';
+    }
+    const salt = rid(10);
+    const status = role === 'verwaltung' || !CONFIG.REQUIRE_APPROVAL ? 'approved' : 'pending';        // 🔌 profiles.status
+    const acc = { id: 'A-' + rid(8), username, salt, hash: await hashPw(salt, password), role, status, createdAt: new Date().toISOString() };
+    list.push(acc); Store.set('accounts', list); Store.set('session', { accountId: acc.id, charId: null });
+    return acc;
+  },
+  async login(username, password) {
+    await sleep(400);
+    const acc = Store.get('accounts', []).find(a => a.username.toLowerCase() === (username || '').trim().toLowerCase());
+    if (!acc || acc.hash !== await hashPw(acc.salt, password || '')) throw new Error('Benutzername oder Passwort ist falsch.');
+    Store.set('session', { accountId: acc.id, charId: null });
+    return acc;
+  },
+  async logout() { Store.del('session'); },
+  async changePassword(oldPw, newPw) {
+    const acc = Auth.need();
+    if (acc.hash !== await hashPw(acc.salt, oldPw || '')) throw new Error('Das aktuelle Passwort ist falsch.');
+    if ((newPw || '').length < 6) throw new Error('Das neue Passwort muss mindestens 6 Zeichen lang sein.');
+    const list = Store.get('accounts', []), a = list.find(x => x.id === acc.id);
+    a.salt = rid(10); a.hash = await hashPw(a.salt, newPw); Store.set('accounts', list);
+  },
+  async deleteAccount(password) {
+    const acc = Auth.need();
+    if (acc.hash !== await hashPw(acc.salt, password || '')) throw new Error('Das Passwort ist falsch.');
+    Auth.chars().forEach(c => purgeCharacter(c.id));
+    const byAcc = x => x.accountId !== acc.id;
+    ['reports', 'jobs', 'jobApps', 'reservations', 'ideas', 'applications'].forEach(k => Store.set(k, Store.get(k, []).filter(byAcc)));
+    const votes = Store.get('votes', {}); delete votes[acc.id]; Store.set('votes', votes);
+    Store.set('accounts', Store.get('accounts', []).filter(a => a.id !== acc.id));
+    Store.del('session');
+  },
+
+  /* ===== Charaktere (= Bürgerkarten) ===== 🔌 Tabelle: characters (id, account_id, first_name, …, citizen_id UNIQUE) */
+  async getCharacters() { return Auth.chars(); },
+  async setActiveChar(id) {
+    const acc = Auth.need();
+    if (!Auth.chars().some(c => c.id === id)) throw new Error('Charakter nicht gefunden.');
+    Store.set('session', { accountId: acc.id, charId: id });
+  },
+  async createCitizen(data) {
+    const acc = Auth.need(); await sleep(600);
+    if (Auth.chars().length >= CONFIG.MAX_CHARACTERS) throw new Error(`Pro Konto sind maximal ${CONFIG.MAX_CHARACTERS} Charaktere möglich.`);
+    const all = Store.get('characters', []);
+    if (all.some(c => c.first.toLowerCase() === data.first.toLowerCase() && c.last.toLowerCase() === data.last.toLowerCase()))
+      throw new Error('Ein Bürger mit diesem Namen ist bereits registriert.');
+    const c = { ...data, id: 'C-' + rid(8), accountId: acc.id, citizenId: 'NS-' + rid(8), createdAt: new Date().toISOString() };
+    all.push(c); Store.set('characters', all); Store.set('session', { accountId: acc.id, charId: c.id });
+    return c;
+  },
+  async getCitizen() { return Auth.active(); },                 // = aktiver Charakter
+  async findCharacterByCitizenId(cid) { return Store.get('characters', []).find(c => c.citizenId === cid) || null; },
+  async updateCitizen(patch) {
+    const c = Auth.active(); if (!c) throw new Error('Keine Bürgerkarte vorhanden.'); await sleep(300);
+    const all = Store.get('characters', []), i = all.findIndex(x => x.id === c.id);
+    all[i] = { ...all[i], ...patch }; Store.set('characters', all); return all[i];
+  },
+  async deleteCharacter(id) {
+    Auth.need(); if (!Auth.chars().some(c => c.id === id)) throw new Error('Charakter nicht gefunden.');
+    purgeCharacter(id);
+  },
+
+  /* ===== Fahrzeuge ===== 🔌 Tabelle: vehicles (id, owner_char_id, account_id, type, model, color, plate UNIQUE, status) */
+  async plateExists(plate) { return Store.get('vehicles', []).some(v => v.plate === plate); },
+  async getVehicles() { const a = Auth.account(); return a ? Store.get('vehicles', []).filter(v => v.accountId === a.id) : []; },
+  async registerVehicle(data) {
+    const acc = Auth.need(); await sleep(600);
+    const ch = Auth.chars().find(c => c.id === data.ownerCharId);
+    if (!ch) throw new Error('Bitte wählen Sie einen Ihrer Charaktere als Halter.');
+    if (await this.plateExists(data.plate)) throw new Error(`Das Kennzeichen ${data.plate} ist bereits vergeben.`);
+    const res = Store.get('reservations', []).find(r => r.plate === data.plate && r.until > Date.now());
+    if (res && res.accountId !== acc.id) throw new Error(`Das Kennzeichen ${data.plate} ist reserviert.`);
+    if (res) Store.set('reservations', Store.get('reservations', []).filter(r => r.plate !== data.plate));
+    const { ownerCharId, ...rest } = data;
+    const v = { ...rest, ownerCharId: ch.id, accountId: acc.id, owner: fullNameOf(ch), citizenId: ch.citizenId, status: 'ok', id: rid(6), createdAt: new Date().toISOString() };
+    const list = Store.get('vehicles', []); list.push(v); Store.set('vehicles', list);
+    return v;
+  },
+
+  /* ===== Gewerbe ===== 🔌 Tabelle: businesses (id, owner_char_id, account_id, name, industry, plot_id UNIQUE, phone UNIQUE, hours, listed, status) */
+  async getRegister() { return Store.get('businesses', []).filter(b => b.listed !== false); },   // öffentlich
+  async getBusinesses() { const a = Auth.account(); return a ? Store.get('businesses', []).filter(b => b.accountId === a.id) : []; },
+  async getOccupiedPlots() { await sleep(100); return Store.get('businesses', []).map(b => b.plotId); },
+  async phoneTaken(phone, exceptReg) { return Store.get('businesses', []).some(b => b.phone === phone && b.regNo !== exceptReg); },
+  async registerBusiness(data) {
+    const acc = Auth.need(); await sleep(800);
+    const ch = Auth.chars().find(c => c.id === data.ownerCharId);
+    if (!ch) throw new Error('Bitte wählen Sie einen Ihrer Charaktere als Inhaber.');
+    const all = Store.get('businesses', []);
+    if (all.some(b => b.plotId === data.plotId)) throw new Error('Dieser Standort wurde gerade vergeben.');
+    if (all.some(b => b.name.toLowerCase() === data.name.toLowerCase())) throw new Error('Ein Gewerbe mit diesem Namen existiert bereits.');
+    if (!/^\d{3}-\d{4}$/.test(data.phone || '')) throw new Error('Telefonnummer bitte im Format 555-1234 angeben.');
+    if (all.some(b => b.phone === data.phone)) throw new Error('Diese Telefonnummer ist bereits vergeben.');
+    const { ownerCharId, ...rest } = data;
+    const b = { ...rest, ownerCharId: ch.id, accountId: acc.id, owner: fullNameOf(ch), staff: [], notes: [], status: 'aktiv',
+                regNo: 'GW-' + new Date().getFullYear() + '-' + rid(4), createdAt: new Date().toISOString() };
+    all.push(b); Store.set('businesses', all);
+    return b;
+  },
+
+  /* ===== Bewerbungen ===== 🔌 Tabelle: applications (id, account_id, char_id, faction, text, status) */
+  async submitApplication(data) {
+    const acc = Auth.need(); const ch = Auth.active();
+    if (!ch) throw new Error('Bitte erstellen Sie zuerst einen Charakter.');
+    await sleep(800);
+    const list = Store.get('applications', []);
+    if (list.some(a => a.faction === data.faction && a.charId === ch.id && a.status === 'offen')) throw new Error('Für diese Fraktion liegt bereits eine offene Bewerbung Ihres Charakters vor.');
+    const a = { ...data, appNo: 'B-' + rid(6), status: 'offen', accountId: acc.id, charId: ch.id, createdAt: new Date().toISOString() };
+    list.push(a); Store.set('applications', list);
+    return a;
+  },
+  async getApplication(no) { return Store.get('applications', []).find(a => a.appNo === no) || null; },
+  async getApplications() { const a = Auth.account(); return a ? Store.get('applications', []).filter(x => x.accountId === a.id) : []; },
+
+  /* ===== News ===== 🔌 Tabelle: news */
+  async getNews() { return [...Store.get('news', []), ...NEWS].sort((a, b) => b.date.localeCompare(a.date)); },
+};
+
+/* ------------------------------------------------------------------
+   3) HELFER
+   ------------------------------------------------------------------ */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rid = n => Array.from({ length: n }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]).join('');
+const fmtDate = iso => new Date(iso).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+const ageFrom = iso => { const d = new Date(iso), n = new Date(); let a = n.getFullYear() - d.getFullYear(); if (n < new Date(n.getFullYear(), d.getMonth(), d.getDate())) a--; return a; };
+const show = (el, msg) => { el.textContent = msg; el.classList.remove('hidden'); };
+const hide = el => el.classList.add('hidden');
+
+function toast(msg, type = 'info') {
+  const colors = { info:'bg-navy-700', success:'bg-accent-600', error:'bg-red-600' };
+  const el = document.createElement('div');
+  el.className = `${colors[type]} text-white text-sm font-semibold px-4 py-3 rounded-lg shadow-lg`;
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
+
+async function withLoading(btn, label, fn) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = label;
+  try { return await fn(); } finally { btn.disabled = false; btn.textContent = old; }
+}
+
+/* ---------- Modal-System ----------
+   Öffnen:  <button data-open="citizen">   (optional data-tab="rules")
+   Schließen: <button data-close>, Klick auf Hintergrund oder ESC            */
+const overlay = $('#overlay');
+const modalHooks = {};   // pro Modal eine Funktion, die beim Öffnen läuft
+
+function openModal(id, opts = {}) {
+  const gate = gateCheck(id, opts);                 // Login-/Charakter-Pflicht (siehe 4f)
+  if (gate === 'stop') return;
+  if (gate) return openModal(gate.id, gate.opts);
+  closeModal(true);
+  overlay.classList.remove('hidden'); overlay.classList.add('flex'); overlay.setAttribute('aria-hidden', 'false');
+  $(`[data-modal="${id}"]`).classList.remove('hidden');
+  document.body.classList.add('overflow-hidden');
+  overlay.scrollTop = 0;
+  modalHooks[id]?.(opts);
+}
+function closeModal(keepOverlay = false) {
+  $$('[data-modal]').forEach(m => m.classList.add('hidden'));
+  if (!keepOverlay) {
+    overlay.classList.add('hidden'); overlay.classList.remove('flex'); overlay.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('overflow-hidden');
+  }
+}
+document.addEventListener('click', e => {
+  const opener = e.target.closest('[data-open]');
+  if (opener) { e.preventDefault(); openModal(opener.dataset.open, { tab: opener.dataset.tab }); return; }
+  if (e.target.closest('[data-close]') || e.target === overlay) closeModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+/* ------------------------------------------------------------------
+   4a) BÜRGERKARTE
+   ------------------------------------------------------------------ */
+const cForm = $('#form-citizen');
+let citizenPhoto = '';       // Data-URL (Upload) oder URL
+let lastCitizen = null;
+
+const SEX_LABEL = { M:'Männlich', W:'Weiblich', D:'Divers' };
+
+function renderCard() {
+  const f = Object.fromEntries(new FormData(cForm));
+  const first = f.first?.trim() || 'Max', last = f.last?.trim() || 'Mustermann';
+  $('#pv-name').textContent = `${last}, ${first}`;
+  $('#pv-birth').textContent = f.birth ? fmtDate(f.birth) : '01.01.2000';
+  $('#pv-sex').textContent = SEX_LABEL[f.sex] || '';
+  $('#pv-district').textContent = f.district;
+  const valid = new Date(); valid.setFullYear(valid.getFullYear() + 10);
+  $('#pv-valid').textContent = fmtDate(valid);
+  const mrz = s => s.toUpperCase().replace(/Ä/g,'AE').replace(/Ö/g,'OE').replace(/Ü/g,'UE').replace(/ß/g,'SS').replace(/[^A-Z]/g,'<');
+  $('#pv-mrz').textContent = `IDD<<${mrz(last)}<<${mrz(first)}<<<<<<<<<<<<<<<<<<<<<<`.slice(0, 44);
+  const photo = citizenPhoto || f.photoUrl?.trim();
+  const img = $('#pv-photo');
+  if (photo) { img.src = photo; img.classList.remove('hidden'); $('#pv-photo-ph').classList.add('hidden'); }
+  else { img.classList.add('hidden'); $('#pv-photo-ph').classList.remove('hidden'); }
+}
+$('#pv-photo').addEventListener('error', () => { $('#pv-photo').classList.add('hidden'); $('#pv-photo-ph').classList.remove('hidden'); });
+cForm.addEventListener('input', e => { if (e.target.id === 'c-photourl') citizenPhoto = ''; renderCard(); });
+
+// Foto-Upload: wird auf 240×300 zugeschnitten & komprimiert (kleine Datenmenge für DB)
+$('#c-photofile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = 240; cv.height = 300;
+      const ctx = cv.getContext('2d'); const r = Math.max(240 / img.width, 300 / img.height);
+      ctx.drawImage(img, (240 - img.width * r) / 2, (300 - img.height * r) / 2, img.width * r, img.height * r);
+      citizenPhoto = cv.toDataURL('image/jpeg', 0.85);
+      $('#c-photourl').value = ''; renderCard();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+cForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('#citizen-error'); hide(err);
+  const f = Object.fromEntries(new FormData(cForm));
+  if (!f.first.trim() || !f.last.trim() || !f.username.trim()) return show(err, 'Bitte füllen Sie alle Pflichtfelder (*) aus.');
+  if (!f.birth) return show(err, 'Bitte geben Sie ein Geburtsdatum an.');
+  const age = ageFrom(f.birth);
+  if (age < CONFIG.MIN_AGE_CHARACTER || age > 99) return show(err, `Die Spielfigur muss zwischen ${CONFIG.MIN_AGE_CHARACTER} und 99 Jahre alt sein.`);
+
+  const valid = new Date(); valid.setFullYear(valid.getFullYear() + 10);
+  const payload = { first:f.first.trim(), last:f.last.trim(), birth:f.birth, sex:f.sex, district:f.district,
+                    username:f.username.trim(), photo: citizenPhoto || f.photoUrl.trim(), validUntil: valid.toISOString() };
+  try {
+    lastCitizen = await withLoading(cForm.querySelector('[type=submit]'), 'Wird ausgestellt …', () => PortalAPI.createCitizen(payload));
+    $('#pv-id').textContent = lastCitizen.citizenId;
+    $('#success-id').textContent = lastCitizen.citizenId;
+    $('#citizen-success').classList.remove('hidden'); renderAuthUI();
+    toast('Bürgerkarte erfolgreich ausgestellt – Charakter ist jetzt aktiv.', 'success');
+  } catch (ex) { show(err, ex.message || 'Es ist ein Fehler aufgetreten.'); }
+});
+
+// Karte als PNG speichern (Canvas)
+window.downloadCard = async function (c) {
+  if (!c) return;
+  const cv = document.createElement('canvas'); cv.width = 856; cv.height = 540; const x = cv.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 856, 540); g.addColorStop(0, '#0b1f3a'); g.addColorStop(.6, '#13315c'); g.addColorStop(1, '#1d4e89');
+  x.fillStyle = g; x.beginPath(); x.roundRect(0, 0, 856, 540, 32); x.fill();
+  x.fillStyle = 'rgba(18,184,134,.2)'; x.beginPath(); x.arc(820, 40, 170, 0, 7); x.fill();
+  x.fillStyle = '#fff'; x.font = '800 40px sans-serif'; x.fillText('BÜRGERKARTE', 40, 70);
+  x.font = '20px sans-serif'; x.fillStyle = '#b3c8e6'; x.fillText('Stadt Saarbrücken • Personalausweis', 40, 100);
+  x.textAlign = 'right'; x.fillStyle = '#fff'; x.font = '24px monospace'; x.fillText(c.citizenId, 816, 70); x.textAlign = 'left';
+  x.fillStyle = '#0e2749'; x.fillRect(40, 140, 220, 280);
+  if (c.photo) await new Promise(res => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { x.drawImage(im, 40, 140, 220, 280); res(); }; im.onerror = res; im.src = c.photo; });
+  const row = (label, val, px, py) => { x.fillStyle = '#b3c8e6'; x.font = '16px sans-serif'; x.fillText(label.toUpperCase(), px, py); x.fillStyle = '#fff'; x.font = '700 26px sans-serif'; x.fillText(val, px, py + 32); };
+  row('Name', `${c.last}, ${c.first}`, 300, 170); row('Geboren', fmtDate(c.birth), 300, 250); row('Geschlecht', SEX_LABEL[c.sex], 560, 250);
+  row('Wohnbezirk', c.district, 300, 330); row('Gültig bis', fmtDate(c.validUntil), 560, 330);
+  try {
+    cv.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `Buergerkarte_${c.last}.png`; a.click(); });
+  } catch { toast('Bild konnte nicht erzeugt werden (Foto-URL blockiert). Nutzen Sie den Foto-Upload.', 'error'); }
+};
+$('#btn-download-card').addEventListener('click', async () => downloadCard(lastCitizen || await PortalAPI.getCitizen()));
+
+modalHooks.citizen = async () => {
+  // Das Modal erstellt immer einen NEUEN Charakter (bestehende sehen Sie unter „Mein Bereich → Charaktere“)
+  const n = (await PortalAPI.getCharacters()).length;
+  if (n >= CONFIG.MAX_CHARACTERS) { closeModal(); return toast(`Maximal ${CONFIG.MAX_CHARACTERS} Charaktere pro Konto erreicht.`, 'error'); }
+  cForm.reset(); citizenPhoto = ''; lastCitizen = null; hide($('#citizen-error')); $('#citizen-success').classList.add('hidden');
+  const acc = PortalAPI.currentAccount(); if (acc) $('#c-user').value = acc.username;
+  $('#pv-id').textContent = 'NS-XXXXXXXX';
+  $('#citizen-limit').textContent = `Charakter ${n + 1} von ${CONFIG.MAX_CHARACTERS}`;
+  renderCard();
+};
+
+/* ------------------------------------------------------------------
+   4b) KFZ-ZULASSUNG
+   ------------------------------------------------------------------ */
+let vType = 'PKW';
+const vPlateInput = $('#v-plate');
+let currentPlateRest = 'AB 123';
+
+function randomPlateRest() {
+  const L = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+  return L[Math.floor(Math.random() * L.length)] + L[Math.floor(Math.random() * L.length)] + ' ' + (Math.floor(Math.random() * 999) + 1);
+}
+function parsePlate(raw) {       // "ab123" -> "AB 123"; null wenn ungültig
+  const m = raw.toUpperCase().trim().match(/^([A-Z]{1,2})\s?(\d{1,4})$/);
+  return m ? `${m[1]} ${m[2]}` : null;
+}
+function updatePlatePreview(rest) { currentPlateRest = rest; $('#plate-rest').textContent = rest; }
+
+$('#btn-random-plate').addEventListener('click', () => { const r = randomPlateRest(); vPlateInput.value = r; updatePlatePreview(r); });
+vPlateInput.addEventListener('input', () => { const p = parsePlate(vPlateInput.value); if (p) updatePlatePreview(p); });
+
+$('#v-types').addEventListener('click', e => {
+  const b = e.target.closest('.choice'); if (!b) return;
+  $$('#v-types .choice').forEach(c => c.classList.remove('active')); b.classList.add('active');
+  vType = b.dataset.value;
+  $('#v-einsatz-note').classList.toggle('hidden', vType !== 'Einsatzfahrzeug');
+  $('#btn-vehicle-submit').disabled = vType === 'Einsatzfahrzeug';
+});
+
+$('#form-vehicle').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('#vehicle-error'); hide(err);
+  const owner = $('#v-owner').value.trim(), model = $('#v-model').value.trim();
+  if (!owner || !model) return show(err, 'Bitte Halter und Modell angeben.');
+
+  let rest = vPlateInput.value.trim() ? parsePlate(vPlateInput.value) : randomPlateRest();
+  if (!rest) return show(err, 'Ungültiges Kennzeichen. Erlaubt: 1–2 Buchstaben + 1–4 Ziffern (z. B. AB 123).');
+  let plate = `${CONFIG.PLATE_PREFIX} ${rest}`;
+
+  try {
+    const taken = await PortalAPI.plateExists(plate);
+    if (taken && vPlateInput.value.trim()) return show(err, `Das Kennzeichen ${plate} ist bereits vergeben. Bitte wählen Sie ein anderes.`);
+    while (await PortalAPI.plateExists(plate)) { rest = randomPlateRest(); plate = `${CONFIG.PLATE_PREFIX} ${rest}`; } // Zufall: bis frei
+    updatePlatePreview(rest);
+    const v = await withLoading($('#btn-vehicle-submit'), 'Wird zugelassen …', () =>
+      PortalAPI.registerVehicle({ ownerCharId: owner, type: vType, model, color: $('#v-color').value.trim(), plate }));
+    $('#v-success-plate').textContent = v.plate; $('#vehicle-success').classList.remove('hidden');
+    toast(`Fahrzeug zugelassen: ${v.plate}`, 'success');
+  } catch (ex) { show(err, ex.message || 'Fehler bei der Zulassung.'); }
+});
+
+modalHooks.vehicle = async () => {
+  hide($('#vehicle-error')); $('#vehicle-success').classList.add('hidden');
+  const chars = await PortalAPI.getCharacters(), act = await PortalAPI.getCitizen();
+  $('#vehicle-owner-warning').classList.toggle('hidden', chars.length > 0);
+  $('#v-owner').innerHTML = chars.map(c => `<option value="${c.id}" ${act && act.id === c.id ? 'selected' : ''}>${esc(fullNameOf(c))} (${esc(c.citizenId)})</option>`).join('');
+};
+
+/* ------------------------------------------------------------------
+   4c) GEWERBE-WIZARD (3 Schritte + interaktive Karte)
+   ------------------------------------------------------------------ */
+const biz = { step: 1, industry: null, plotId: null };
+let occupied = [];
+
+$('#b-industries').innerHTML = INDUSTRIES.map(i =>
+  `<button type="button" class="choice" data-id="${i.id}"><div class="text-2xl">${i.icon}</div><div class="mt-1 text-sm font-semibold leading-tight">${i.name}</div></button>`).join('');
+$('#b-industries').addEventListener('click', e => {
+  const b = e.target.closest('.choice'); if (!b) return;
+  $$('#b-industries .choice').forEach(c => c.classList.remove('active')); b.classList.add('active'); biz.industry = b.dataset.id;
+});
+
+function renderMap() {
+  const roads = `
+    <rect width="640" height="400" fill="#ecfdf5"/>
+    <rect x="0" y="140" width="640" height="50" fill="#cbd5e1"/><rect x="0" y="163" width="640" height="3" fill="#fff" opacity=".7"/>
+    <rect x="300" y="0" width="40" height="330" fill="#cbd5e1"/>
+    <path d="M0 340 Q160 310 320 345 T640 335 V400 H0Z" fill="#93c5fd"/>
+    <text x="40" y="170" font-size="12" fill="#475569">Hauptstraße</text>
+    <text x="311" y="320" font-size="12" fill="#475569" transform="rotate(-90 311 320)">Marktallee</text>
+    <text x="230" y="378" font-size="12" fill="#1d4e89">Saarbrücken-Aue</text>`;
+  const plots = PLOTS.map(p => {
+    const occ = occupied.includes(p.id), sel = biz.plotId === p.id;
+    return `<g class="plot ${occ ? 'occupied' : ''} ${sel ? 'selected' : ''}" data-id="${p.id}" tabindex="${occ ? -1 : 0}" role="button" aria-label="${p.name}${occ ? ' (vergeben)' : ''}">
+      <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8"/>
+      <text x="${p.x + p.w / 2}" y="${p.y + p.h / 2 - 2}" text-anchor="middle">${p.id}</text>
+      <text x="${p.x + p.w / 2}" y="${p.y + p.h / 2 + 14}" text-anchor="middle" style="font-weight:400;font-size:10px">${occ ? 'vergeben' : p.name}</text></g>`;
+  }).join('');
+  $('#biz-map').innerHTML = roads + plots;
+  const sel = PLOTS.find(p => p.id === biz.plotId);
+  $('#b-plot-info').textContent = sel ? `Gewählt: ${sel.name} (${sel.id})` : 'Noch kein Standort gewählt';
+}
+function pickPlot(g) {
+  if (!g || g.classList.contains('occupied')) return;
+  biz.plotId = g.dataset.id; renderMap();
+}
+$('#biz-map').addEventListener('click', e => pickPlot(e.target.closest('.plot')));
+$('#biz-map').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickPlot(e.target.closest('.plot')); } });
+
+function gotoStep(n) {
+  biz.step = n;
+  $$('[data-bstep]').forEach(s => s.classList.toggle('hidden', +s.dataset.bstep !== n));
+  $$('#biz-steps [data-step]').forEach(li => {
+    const s = +li.dataset.step, bubble = li.firstElementChild;
+    li.classList.toggle('text-slate-400', s > n);
+    bubble.className = 'h-7 w-7 rounded-full grid place-items-center ' + (s <= n ? 'bg-accent-600 text-white' : 'bg-slate-200 text-slate-600');
+  });
+  $('#btn-biz-back').classList.toggle('invisible', n === 1);
+  $('#btn-biz-next').textContent = n === 3 ? '✔ Gewerbe anmelden' : 'Weiter →';
+  hide($('#business-error'));
+}
+$('#btn-biz-back').addEventListener('click', () => gotoStep(biz.step - 1));
+$('#btn-biz-next').addEventListener('click', async () => {
+  const err = $('#business-error'); hide(err);
+  if (biz.step === 1) {
+    if ($('#b-name').value.trim().length < 3) return show(err, 'Bitte geben Sie einen Firmennamen mit mindestens 3 Zeichen ein.');
+    if (!$('#b-owner').value) return show(err, 'Bitte wählen Sie den Inhaber (einen Ihrer Charaktere).');
+    const phone = $('#b-phone').value.trim();
+    if (!/^\d{3}-\d{4}$/.test(phone)) return show(err, 'Bitte geben Sie die Telefonnummer im Format 555-1234 an.');
+    if (await PortalAPI.phoneTaken(phone)) return show(err, 'Diese Telefonnummer ist bereits vergeben. Nutzen Sie 🎲 für eine freie Nummer.');
+    return gotoStep(2);
+  }
+  if (biz.step === 2) { if (!biz.industry) return show(err, 'Bitte wählen Sie eine Branche.'); return gotoStep(3); }
+  // Schritt 3 → absenden
+  if (!biz.plotId) return show(err, 'Bitte wählen Sie einen freien Standort auf der Karte.');
+  if (!$('#b-rules').checked) return show(err, 'Bitte bestätigen Sie die Stadtregeln.');
+  try {
+    const plot = PLOTS.find(p => p.id === biz.plotId);
+    const b = await withLoading($('#btn-biz-next'), 'Wird angemeldet …', () => PortalAPI.registerBusiness({
+      name: $('#b-name').value.trim(), ownerCharId: $('#b-owner').value, phone: $('#b-phone').value.trim(), hours: $('#b-hours').value.trim(), listed: $('#b-listed').checked, legalForm: $('#b-form').value,
+      description: $('#b-desc').value.trim(), industry: biz.industry, plotId: biz.plotId, plotName: plot.name }));
+    const ok = $('#business-success');
+    ok.innerHTML = `<p class="font-bold text-accent-700">✅ Gewerbe angemeldet!</p><p class="mt-1 text-slate-700"><b>${esc(b.name)}</b> (${esc(b.legalForm)}) ist ab sofort am Standort <b>${esc(b.plotName)}</b> eingetragen (Inhaber: ${esc(b.owner)}). Telefon: <b>${esc(b.phone)}</b> • Gewerbe-Nr.: <b class="font-mono">${b.regNo}</b></p>`;
+    ok.classList.remove('hidden'); $('#btn-biz-next').classList.add('hidden'); $('#btn-biz-back').classList.add('hidden');
+    occupied.push(b.plotId); renderMap();
+    toast('Gewerbe erfolgreich angemeldet!', 'success');
+  } catch (ex) { show(err, ex.message); occupied = await PortalAPI.getOccupiedPlots(); biz.plotId = null; renderMap(); }
+});
+
+modalHooks.business = async () => {
+  biz.plotId = null; biz.industry = null;
+  $('#form-business').reset(); $$('#b-industries .choice').forEach(c => c.classList.remove('active'));
+  $('#business-success').classList.add('hidden'); $('#btn-biz-next').classList.remove('hidden'); $('#btn-biz-back').classList.remove('hidden');
+  gotoStep(1);
+  occupied = await PortalAPI.getOccupiedPlots(); renderMap();
+  const chars = await PortalAPI.getCharacters(), act = await PortalAPI.getCitizen();
+  $('#b-owner').innerHTML = chars.map(c => `<option value="${c.id}" ${act && act.id === c.id ? 'selected' : ''}>${esc(fullNameOf(c))} (${esc(c.citizenId)})</option>`).join('');
+  $('#b-phone').value = randomPhone(); $('#b-listed').checked = true;
+};
+
+/* ------------------------------------------------------------------
+   4d) KARRIERE / BEWERBUNGEN
+   ------------------------------------------------------------------ */
+let faction = null;
+$('#k-factions').innerHTML = FACTIONS.map(f =>
+  `<button type="button" class="choice" data-id="${f.id}"><div class="text-xl">${f.icon}</div><div class="text-sm font-semibold leading-tight">${f.name}</div></button>`).join('');
+$('#k-factions').addEventListener('click', e => {
+  const b = e.target.closest('.choice'); if (!b) return;
+  $$('#k-factions .choice').forEach(c => c.classList.remove('active')); b.classList.add('active');
+  faction = b.dataset.id; $('#k-faction-desc').textContent = FACTIONS.find(f => f.id === faction).desc;
+});
+$('#k-text').addEventListener('input', e => $('#k-count').textContent = e.target.value.length);
+
+$('#form-career').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('#career-error'); hide(err);
+  const d = { faction, name:$('#k-name').value.trim(), discord:$('#k-discord').value.trim(), age:+$('#k-age').value, experience:$('#k-exp').value, text:$('#k-text').value.trim() };
+  if (!d.faction) return show(err, 'Bitte wählen Sie eine Behörde bzw. Fraktion.');
+  if (!d.name || !d.discord) return show(err, 'Bitte geben Sie Name und Discord-Namen an.');
+  if (!d.age || d.age < 12) return show(err, 'Bitte geben Sie ein gültiges Alter an.');
+  if (d.text.length < 80) return show(err, `Ihre Motivation ist zu kurz (${d.text.length}/80 Zeichen).`);
+  if (!$('#k-rules').checked) return show(err, 'Bitte akzeptieren Sie die Stadtregeln.');
+  try {
+    const a = await withLoading(e.target.querySelector('[type=submit]'), 'Wird gesendet …', () => PortalAPI.submitApplication(d));
+    const ok = $('#career-success');
+    ok.innerHTML = `<p class="font-bold text-accent-700">✅ Bewerbung eingegangen</p><p class="mt-1 text-slate-700">Ihre Bewerbungsnummer: <b class="font-mono">${a.appNo}</b>. Wir melden uns per Discord bei Ihnen.</p>`;
+    ok.classList.remove('hidden'); toast('Bewerbung wurde eingereicht!', 'success');
+  } catch (ex) { show(err, ex.message); }
+});
+$('#btn-lookup').addEventListener('click', async () => {
+  const no = $('#k-lookup').value.trim().toUpperCase(), out = $('#k-lookup-result');
+  const a = no && await PortalAPI.getApplication(no);
+  out.innerHTML = a ? `Status: <b class="text-amber-600">${esc(a.status)}</b> – ${esc(FACTIONS.find(f => f.id === a.faction)?.name)}` : '<span class="text-red-600">Keine Bewerbung gefunden.</span>';
+});
+
+/* ------------------------------------------------------------------
+   4e) NEWS / REGELN / STATUS
+   ------------------------------------------------------------------ */
+function newsCard(n, compact) {
+  return `<article class="rounded-xl border border-slate-200 bg-white p-5 ${compact ? 'shadow-sm' : ''}">
+    <div class="flex items-center gap-2 text-xs"><span class="rounded-full bg-accent-50 px-2 py-0.5 font-semibold text-accent-700">${esc(n.tag)}</span><span class="text-slate-500">${fmtDate(n.date)}</span></div>
+    <h3 class="mt-2 font-bold text-navy-700">${esc(n.title)}</h3><p class="mt-1 text-sm text-slate-600">${esc(n.text)}</p></article>`;
+}
+async function renderNews() {
+  const list = await PortalAPI.getNews();
+  $('#news-teaser').innerHTML = list.slice(0, 3).map(n => newsCard(n, true)).join('');
+  $('#news-list').innerHTML = list.map(n => newsCard(n)).join('');
+  $('#rules-list').innerHTML = RULES.map(r => `<details class="rounded-xl border border-slate-200 p-4"><summary class="cursor-pointer font-semibold text-navy-700">${esc(r.t)}</summary><p class="mt-2 text-sm text-slate-600">${esc(r.d)}</p></details>`).join('');
+}
+function setNewsTab(tab) {
+  $$('#news-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  $$('[data-tabpanel]').forEach(p => p.classList.toggle('hidden', p.dataset.tabpanel !== tab));
+}
+$('#news-tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) setNewsTab(t.dataset.tab); });
+modalHooks.news = ({ tab } = {}) => setNewsTab(tab || 'news');
+
+/* ------------------------------------------------------------------
+   4f) KONTO / LOGIN (Frontend-Demo)
+   ------------------------------------------------------------------ */
+const GATED_MODALS = ['citizen', 'vehicle', 'business', 'career'];   // brauchen ein Konto
+const CHAR_MODALS  = ['vehicle', 'business', 'career'];              // brauchen zusätzlich einen Charakter
+let pendingOpen = null;                                              // Modal, das nach dem Login geöffnet wird
+
+// Wird von openModal() aufgerufen: leitet auf Login / Charakter-Erstellung um
+function gateCheck(id, opts) {
+  if (id === 'dashboard') { closeModal(); location.hash = '#/konto/start'; return 'stop'; }
+  if (id === 'auth') return null;
+  if (GATED_MODALS.includes(id) && PortalAPI.currentAccount() && !Auth.approved()) {
+    toast(Auth.status() === 'rejected' ? 'Ihr Konto wurde abgelehnt.' : 'Ihr Konto wartet noch auf die Freischaltung durch die Verwaltung.', 'error'); return 'stop';
+  }
+  if (GATED_MODALS.includes(id) && !PortalAPI.currentAccount()) {
+    pendingOpen = { id, opts }; toast('Bitte melden Sie sich zuerst an.');
+    return { id: 'auth', opts: { tab: 'login' } };
+  }
+  if (CHAR_MODALS.includes(id) && !Auth.active()) {
+    toast('Sie benötigen zuerst eine Bürgerkarte (Charakter).');
+    return { id: 'citizen', opts: {} };
+  }
+  return null;
+}
+
+function setAuthTab(tab) {
+  $$('.tab[data-authtab]').forEach(b => b.classList.toggle('active', b.dataset.authtab === tab));
+  $('#form-login').classList.toggle('hidden', tab !== 'login');
+  $('#form-register').classList.toggle('hidden', tab !== 'register');
+  $('#t-auth').textContent = tab === 'login' ? '🔐 Anmelden' : '📝 Konto erstellen';
+  hide($('#login-error')); hide($('#register-error'));
+}
+modalHooks.auth = ({ tab } = {}) => {
+  setAuthTab(tab || 'login');
+  setTimeout(() => $(tab === 'register' ? '#r-user' : '#l-user').focus(), 50);
+};
+$$('[data-authtab]').forEach(b => b.addEventListener('click', () => setAuthTab(b.dataset.authtab)));
+
+function afterAuth(isNew) {
+  closeModal(); renderAuthUI(); window.refreshView?.();
+  const p = pendingOpen; pendingOpen = null;
+  if (p) { setTimeout(() => openModal(p.id, p.opts), 60); return; }
+  if (isNew && Auth.approved()) setTimeout(() => { toast('Erstellen Sie jetzt Ihren ersten Charakter.'); openModal('citizen'); }, 60);
+}
+
+$('#form-login').addEventListener('submit', async e => {
+  e.preventDefault(); const er = $('#login-error'); hide(er);
+  try {
+    const acc = await withLoading(e.target.querySelector('[type=submit]'), 'Wird angemeldet …', () => PortalAPI.login($('#l-user').value, $('#l-pass').value));
+    e.target.reset(); toast(`Willkommen zurück, ${acc.username}!`, 'success'); afterAuth(false);
+  } catch (ex) { show(er, ex.message); }
+});
+$('#form-register').addEventListener('submit', async e => {
+  e.preventDefault(); const er = $('#register-error'); hide(er);
+  if ($('#r-pass').value !== $('#r-pass2').value) return show(er, 'Die Passwörter stimmen nicht überein.');
+  if (!$('#r-rules').checked) return show(er, 'Bitte akzeptieren Sie die Stadtregeln.');
+  try {
+    const acc = await withLoading(e.target.querySelector('[type=submit]'), 'Wird erstellt …', () =>
+      PortalAPI.register({ username: $('#r-user').value, password: $('#r-pass').value, staffCode: $('#r-code').value }));
+    e.target.reset(); toast(acc.role === 'verwaltung' ? 'Konto erstellt – Verwaltungszugang aktiv.' : Auth.approved() ? 'Konto erstellt!' : 'Konto erstellt – die Verwaltung muss es noch freischalten.', 'success'); afterAuth(true);
+  } catch (ex) { show(er, ex.message); }
+});
+
+/* Hinweisleiste unter dem Header: Konto wartet auf Freischaltung / wurde abgelehnt */
+function renderApprovalBanner(acc) {
+  const b = $('#approval-banner'), st = Auth.status(acc);
+  if (!acc || st === 'approved') { b.classList.add('hidden'); b.innerHTML = ''; return; }
+  const rej = st === 'rejected';
+  b.className = `${rej ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-900'} border-b ${rej ? 'border-red-200' : 'border-amber-200'}`;
+  b.innerHTML = `<div class="mx-auto max-w-7xl px-4 py-3 text-sm"><b>${rej ? 'Konto abgelehnt.' : 'Freischaltung ausstehend.'}</b> ${rej
+    ? 'Die Verwaltung hat Ihre Kontoanfrage abgelehnt. Bitte wenden Sie sich über den Discord-Server an die Stadtverwaltung.'
+    : 'Ihr Konto wurde angelegt und wird von der Stadtverwaltung geprüft. Sobald es freigeschaltet ist, können Sie Bürgerkarte, Fahrzeug, Gewerbe und Bewerbungen nutzen. Das Register und die News können Sie bereits ansehen.'}</div>`;
+}
+
+/* Header: Login-Buttons bzw. Benutzermenü mit Charakter-Wechsel */
+function renderAuthUI() {
+  const acc = PortalAPI.currentAccount(), box = $('#auth-area');
+  $('#nav-staff').classList.toggle('hidden', !(acc && acc.role === 'verwaltung'));
+  renderApprovalBanner(acc);
+  if (acc && acc.role === 'verwaltung') PortalAPI.getAllAccounts().then(l => { const n = l.filter(a => a.status === 'pending').length; $('#nav-staff').textContent = '🏛️ Behörde' + (n ? ` (${n} neu)` : ''); }).catch(() => {});
+  if (!acc) {
+    box.innerHTML = `<button data-open="auth" data-tab="login" class="btn-secondary text-sm whitespace-nowrap">Anmelden</button>
+                     <button data-open="auth" data-tab="register" class="btn-primary text-sm whitespace-nowrap">Registrieren</button>`;
+    return;
+  }
+  const chars = Auth.chars(), act = Auth.active(), staff = acc.role === 'verwaltung';
+  box.innerHTML = `<div class="relative">
+    <button id="user-btn" class="btn-navy text-sm !py-2 text-left" aria-haspopup="true">
+      <span class="leading-tight"><span class="block">👤 ${esc(acc.username)}${staff ? ' 🏛️' : ''}</span><span class="block text-[11px] font-normal text-navy-200">${Auth.status(acc) === 'pending' ? '⏳ Freischaltung ausstehend' : Auth.status(acc) === 'rejected' ? 'Konto abgelehnt' : act ? esc(fullNameOf(act)) : 'Kein Charakter'}</span></span> ▾</button>
+    <div id="user-menu" class="hidden absolute right-0 z-40 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
+      <p class="px-3 pt-2 text-xs font-bold uppercase tracking-wide text-slate-500">Aktiver Charakter</p>
+      ${chars.length ? chars.map(c => `<button data-menu="char" data-id="${c.id}" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 ${act && act.id === c.id ? 'bg-accent-50' : ''}"><span>${act && act.id === c.id ? '✅' : '⚪'}</span><span class="truncate">${esc(fullNameOf(c))}</span></button>`).join('')
+        : '<p class="px-3 py-2 text-sm text-slate-500">Noch kein Charakter.</p>'}
+      ${chars.length < CONFIG.MAX_CHARACTERS ? '<button data-open="citizen" class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-navy-700 hover:bg-slate-50">➕ Neuer Charakter</button>' : ''}
+      <hr class="my-2">
+      <a href="#/konto/start" class="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">📂 Mein Bereich</a>
+      ${staff ? '<a href="#/behoerde/start" class="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">🏛️ Behörden-Bereich</a>' : ''}
+      <button data-menu="logout" class="w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50">Abmelden</button>
+    </div></div>`;
+}
+document.addEventListener('click', async e => {
+  const menu = $('#user-menu');
+  if (e.target.closest('#user-btn')) { menu?.classList.toggle('hidden'); return; }
+  const m = e.target.closest('[data-menu]');
+  if (m) {
+    menu?.classList.add('hidden');
+    if (m.dataset.menu === 'char') { await PortalAPI.setActiveChar(m.dataset.id); renderAuthUI(); window.refreshView?.(); toast('Charakter gewechselt.', 'success'); }
+    if (m.dataset.menu === 'logout') { await PortalAPI.logout(); pendingOpen = null; renderAuthUI(); window.refreshView?.(); toast('Sie wurden abgemeldet.'); }
+    return;
+  }
+  if (menu && (!e.target.closest('#user-menu') || e.target.closest('a,[data-open]'))) menu.classList.add('hidden');
+});
+
+/* Demo-Daten zurücksetzen */
+window.resetDemo = function () {
+  if (!confirm('Alle Demo-Daten (Konten, Charaktere, Fahrzeuge, Gewerbe …) in diesem Browser löschen?')) return;
+  Store.clear(); ensureSeed(); renderAuthUI(); renderNews(); location.hash = ''; window.refreshView?.(); toast('Demo-Daten zurückgesetzt.');
+};
+$('#btn-reset-global').addEventListener('click', () => window.resetDemo());
+
+/* Gewerbe: zufällige Telefonnummer */
+$('#btn-random-phone').addEventListener('click', async () => {
+  let p; do { p = randomPhone(); } while (await PortalAPI.phoneTaken(p));
+  $('#b-phone').value = p;
+});
+
+/* Karriere: Name des aktiven Charakters vorbelegen */
+modalHooks.career = async () => {
+  hide($('#career-error')); $('#career-success').classList.add('hidden');
+  const c = await PortalAPI.getCitizen();
+  if (c) $('#k-name').value = fullNameOf(c);
+};
+
+/* Fehler aus Aktionen (z. B. fehlende Rechte) als Hinweis anzeigen */
+window.addEventListener('unhandledrejection', e => { e.preventDefault(); toast((e.reason && e.reason.message) || 'Unerwarteter Fehler.', 'error'); });
+
+/* ------------------------------------------------------------------
+   Schnellsuche (Header)
+   ------------------------------------------------------------------ */
+const SEARCH_INDEX = [
+  { title:'Bürgerkarte / Personalausweis erstellen', kw:'ausweis personalausweis bürgerkarte pass identität karte', modal:'citizen' },
+  { title:'Fahrzeug anmelden / Kennzeichen', kw:'kfz auto lkw fahrzeug kennzeichen zulassung anmelden truck motorrad', modal:'vehicle' },
+  { title:'Gewerbe anmelden / Firma gründen', kw:'gewerbe firma gründen unternehmen standort laden', modal:'business' },
+  { title:'Bewerbung Polizei / Feuerwehr / Rettung', kw:'bewerbung polizei feuerwehr rettung werkstatt job karriere', modal:'career' },
+  { title:'Stadtregeln', kw:'regeln regelwerk verhalten rp', modal:'news', tab:'rules' },
+  { title:'News & Updates', kw:'news neuigkeiten update map', modal:'news', tab:'news' },
+  { title:'Mein Bereich / Charaktere', kw:'mein bereich konto unterlagen dashboard charakter', href:'#/konto/start' },
+  { title:'Gewerberegister (Telefonnummern)', kw:'register gewerbe telefon telefonnummer firmen betriebe', href:'#/gewerbe/register' },
+  { title:'Telefonverzeichnis Behörden / Notruf', kw:'telefon verzeichnis behörden notruf nummer rathaus', href:'#/news/verzeichnis' },
+  { title:'Anmelden / Konto erstellen', kw:'login anmelden registrieren konto account', modal:'auth' }
+];
+const sInput = $('#search'), sBox = $('#search-results');
+sInput.addEventListener('input', () => {
+  const q = sInput.value.trim().toLowerCase();
+  if (!q) return sBox.classList.add('hidden');
+  const hits = SEARCH_INDEX.filter(i => (i.title + ' ' + i.kw).toLowerCase().includes(q));
+  sBox.innerHTML = hits.length
+    ? hits.map((h, i) => `<li><button class="w-full px-4 py-3 text-left text-sm hover:bg-navy-50" data-hit="${SEARCH_INDEX.indexOf(h)}">${esc(h.title)}</button></li>`).join('')
+    : '<li class="px-4 py-3 text-sm text-slate-500">Keine Treffer.</li>';
+  sBox.classList.remove('hidden');
+});
+sBox.addEventListener('click', e => {
+  const b = e.target.closest('[data-hit]'); if (!b) return;
+  const h = SEARCH_INDEX[+b.dataset.hit]; sBox.classList.add('hidden'); sInput.value = ''; if (h.href) { location.hash = h.href; return; } openModal(h.modal, { tab: h.tab });
+});
+document.addEventListener('click', e => { if (!e.target.closest('#search') && !e.target.closest('#search-results')) sBox.classList.add('hidden'); });
+
+/* ------------------------------------------------------------------
+   5) INIT
+   ------------------------------------------------------------------ */
+ensureSeed();
+renderAuthUI();
+$('#year').textContent = new Date().getFullYear();
+renderNews();
+renderCard();
+</script>
+
+<script>
+/* =====================================================================
+   SERVICE-SEITEN  (Router + Tabs + Dienste)
+   Routen:  #/buerger  #/kfz  #/gewerbe  #/karriere  #/news   (+ /<tab>)
+   - Nutzt Store, PortalAPI, Helfer und Stammdaten aus dem Skript oben.
+   - Neue Datenfunktionen hängen wir an PortalAPI an (siehe "API-Erweiterungen").
+     → Später 1:1 durch Supabase-Aufrufe ersetzen.
+   ===================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------------- Demo-Stammdaten ---------------- */
+  const STREETS   = ['Hauptstraße', 'Marktallee', 'Hafenstraße', 'Marktplatz', 'Industrieweg', 'Gewerbering'];
+  const DISTRICTS = ['Saarbrücken-Mitte', 'Hafenviertel', 'Altstadt', 'Industriegebiet', 'Siedlung Nord'];
+  const SEED_JOBS = [
+    { id:'S1', company:'Hafen Logistik GmbH', industry:'transport', title:'LKW-Fahrer (m/w/d)', desc:'Container und Stückgut im Stadtgebiet. Führerschein Klasse C von Vorteil.', slots:3 },
+    { id:'S2', company:'Bistro am Markt',     industry:'gastro',    title:'Servicekraft',        desc:'Bedienung und Lieferfahrten am Marktplatz.', slots:2 },
+    { id:'S3', company:'Werkstatt Müller',    industry:'werkstatt', title:'Mechaniker (m/w/d)',  desc:'Reparaturen, Pannenhilfe und Abschleppen.', slots:1 }
+  ];
+  const SEED_IDEAS = [
+    { id:'I1', title:'Mehr Tankstellen auf der Map', text:'Gerade für LKW-Routen fehlen Tankstellen im Norden.', cat:'Map', votes:8, by:'Community' },
+    { id:'I2', title:'Wöchentliche Stadtevents', text:'Zum Beispiel Rennen am Hafen oder Truck-Treffen.', cat:'Events', votes:5, by:'Community' },
+    { id:'I3', title:'Eigene Garage pro Gewerbe', text:'Firmen sollen Fahrzeuge am Standort abstellen können.', cat:'Map', votes:3, by:'Community' }
+  ];
+  window.SEEDS = { jobs: SEED_JOBS, ideas: SEED_IDEAS };   // Beispiel-Inhalte (auch im Supabase-Modus sichtbar)
+  const FACTION_INFO = {
+    polizei:   { slots:4, req:['Mindestens 16 Jahre (Spielfigur)', 'Führerschein Klasse B', 'Funktionierendes Mikrofon'] },
+    feuerwehr: { slots:3, req:['Teamfähigkeit', 'Führerschein Klasse B (C von Vorteil)', 'Funktionierendes Mikrofon'] },
+    rettung:   { slots:2, req:['Ruhe in Stresssituationen', 'Führerschein Klasse B', 'Discord-Teilnahme'] },
+    werkstatt: { slots:2, req:['Spaß an Fahrzeugen', 'Führerschein Klasse B/C'] },
+    verwaltung:{ slots:1, req:['Freundlicher Umgang', 'Erfahrung im RP von Vorteil'] }
+  };
+  const CLASSES = [
+    { id:'B', icon:'🚗', name:'Klasse B – PKW',        minAge:16, needs:null },
+    { id:'A', icon:'🏍️', name:'Klasse A – Motorrad',   minAge:16, needs:null },
+    { id:'C', icon:'🚚', name:'Klasse C – LKW',        minAge:18, needs:'B' },
+    { id:'D', icon:'🚌', name:'Klasse D – Bus',        minAge:18, needs:'B' }
+  ];
+  const QUIZ = [
+    { q:'Wie schnell darf man innerorts höchstens fahren, wenn kein anderes Limit gilt?', o:['30 km/h','50 km/h','70 km/h'], a:1 },
+    { q:'Was bedeutet eine rote Ampel?', o:['Langsam weiterfahren','Anhalten und warten','Nur Linksabbieger dürfen fahren'], a:1 },
+    { q:'An einer Kreuzung ohne Schilder gilt …', o:['Rechts vor links','Links vor rechts','Der Größere hat Vorfahrt'], a:0 },
+    { q:'Ein Einsatzfahrzeug nähert sich mit Blaulicht und Martinshorn. Was tun Sie?', o:['Schneller fahren','Sofort freie Bahn schaffen','Hupen und weiterfahren'], a:1 },
+    { q:'Im Rollenspiel: Dürfen Sie absichtlich in andere Spieler fahren (VDM)?', o:['Ja, wenn es lustig ist','Nein, das ist verboten','Nur nachts'], a:1 },
+    { q:'Wann schalten Sie das Fernlicht ein?', o:['Immer','Bei Dunkelheit, wenn niemand geblendet wird','Nur bei Regen'], a:1 },
+    { q:'Nach einem Unfall sollten Sie zuerst …', o:['Wegfahren','Die Unfallstelle absichern und Hilfe rufen','Das Fahrzeug umlackieren'], a:1 },
+    { q:'Welcher Abstand ist bei 50 km/h angemessen?', o:['Etwa 25 m (halber Tachowert)','Ein Zentimeter','Egal'], a:0 }
+  ];
+  const QUIZ_PASS = 6;
+
+  /* ---------------- API-Erweiterungen (🔌 später Supabase) ----------------
+     Besitz-Regel: Bürger dürfen nur Datensätze ihres Kontos ändern, Verwaltung darf alle. */
+  const canEdit = (acc, rec) => !!acc && (rec.accountId === acc.id || acc.role === 'verwaltung');
+
+  Object.assign(PortalAPI, {
+    /* Führerschein (pro Charakter) – 🔌 Tabelle: licenses (char_id, no, classes[]) */
+    async getLicense() { const c = Auth.active(); return c ? (Store.get('licenses', {})[c.id] || null) : null; },
+    async getMyLicenses() { const m = Store.get('licenses', {}), o = {}; Auth.chars().forEach(c => { if (m[c.id]) o[c.id] = m[c.id]; }); return o; },
+    async saveLicense(classes) {
+      const c = Auth.active(); if (!c) throw new Error('Kein aktiver Charakter.'); await sleep(500);
+      const m = Store.get('licenses', {}), old = m[c.id];
+      m[c.id] = { no: old?.no || 'FS-' + rid(6), classes: [...new Set([...(old?.classes || []), ...classes])], issuedAt: old?.issuedAt || new Date().toISOString() };
+      Store.set('licenses', m); return m[c.id];
+    },
+
+    /* Mängelmelder – 🔌 Tabelle: reports */
+    async getReports() { const a = Auth.account(); return a ? Store.get('reports', []).filter(r => r.accountId === a.id) : []; },
+    async addReport(r) {
+      const acc = Auth.need(); await sleep(500); const ch = Auth.active();
+      const x = { ...r, no: 'M-' + rid(5), status: 'Eingegangen', accountId: acc.id, by: ch ? fullNameOf(ch) : acc.username, createdAt: new Date().toISOString() };
+      const l = Store.get('reports', []); l.unshift(x); Store.set('reports', l); return x;
+    },
+    async removeReport(no) { const a = Auth.need(); Store.set('reports', Store.get('reports', []).filter(r => !(r.no === no && r.accountId === a.id))); },
+
+    /* Fahrzeuge */
+    async updateVehicle(id, patch) {
+      const acc = Auth.need(), l = Store.get('vehicles', []), i = l.findIndex(v => v.id === id);
+      if (i < 0) throw new Error('Fahrzeug nicht gefunden.');
+      if (!canEdit(acc, l[i])) throw new Error('Kein Zugriff auf dieses Fahrzeug.');
+      if (patch.plate && l.some(v => v.plate === patch.plate && v.id !== id)) throw new Error(`Das Kennzeichen ${patch.plate} ist bereits vergeben.`);
+      l[i] = { ...l[i], ...patch }; Store.set('vehicles', l); return l[i];
+    },
+    async removeVehicle(id) {
+      const acc = Auth.need(), l = Store.get('vehicles', []), v = l.find(x => x.id === id);
+      if (!v || !canEdit(acc, v)) throw new Error('Kein Zugriff auf dieses Fahrzeug.');
+      Store.set('vehicles', l.filter(x => x.id !== id));
+    },
+    async transferVehicle(id, citizenId) {                       // Halterwechsel an eine Bürger-ID (auch eines anderen Kontos)
+      const acc = Auth.need(), l = Store.get('vehicles', []), i = l.findIndex(v => v.id === id);
+      if (i < 0 || !canEdit(acc, l[i])) throw new Error('Kein Zugriff auf dieses Fahrzeug.');
+      const target = await this.findCharacterByCitizenId((citizenId || '').trim().toUpperCase());
+      if (!target) throw new Error('Kein Bürger mit dieser Bürger-ID gefunden.');
+      l[i] = { ...l[i], ownerCharId: target.id, accountId: target.accountId, owner: fullNameOf(target), citizenId: target.citizenId };
+      Store.set('vehicles', l); return l[i];
+    },
+    async getReservations() {
+      const acc = Auth.account(), all = Store.get('reservations', []).filter(r => r.until > Date.now());
+      Store.set('reservations', all); return acc ? all.filter(r => r.accountId === acc.id) : [];
+    },
+    async reservePlate(plate) {
+      const acc = Auth.need(), all = Store.get('reservations', []).filter(r => r.until > Date.now());
+      if (all.some(r => r.plate === plate)) throw new Error('Dieses Kennzeichen ist bereits reserviert.');
+      all.push({ plate, accountId: acc.id, until: Date.now() + 864e5 }); Store.set('reservations', all);
+    },
+    async cancelReservation(plate) { const a = Auth.need(); Store.set('reservations', Store.get('reservations', []).filter(r => !(r.plate === plate && r.accountId === a.id))); },
+
+    /* Gewerbe */
+    async getOccupancy() { const a = Auth.account(); return Store.get('businesses', []).map(b => ({ plotId: b.plotId, name: b.name, mine: !!a && b.accountId === a.id })); },
+    async updateBusiness(regNo, patch) {
+      const acc = Auth.need(), l = Store.get('businesses', []), i = l.findIndex(b => b.regNo === regNo);
+      if (i < 0) throw new Error('Gewerbe nicht gefunden.');
+      if (!canEdit(acc, l[i])) throw new Error('Kein Zugriff auf dieses Gewerbe.');
+      if (patch.phone !== undefined) {
+        if (!/^\d{3}-\d{4}$/.test(patch.phone)) throw new Error('Telefonnummer bitte im Format 555-1234 angeben.');
+        if (l.some(b => b.phone === patch.phone && b.regNo !== regNo)) throw new Error('Diese Telefonnummer ist bereits vergeben.');
+      }
+      l[i] = { ...l[i], ...patch }; Store.set('businesses', l); return l[i];
+    },
+    async removeBusiness(regNo) {
+      const acc = Auth.need(), l = Store.get('businesses', []), b = l.find(x => x.regNo === regNo);
+      if (!b || !canEdit(acc, b)) throw new Error('Kein Zugriff auf dieses Gewerbe.');
+      Store.set('businesses', l.filter(x => x.regNo !== regNo));
+      Store.set('jobs', Store.get('jobs', []).filter(j => j.regNo !== regNo));
+    },
+
+    /* Stellenmarkt */
+    async getJobs() { const a = Auth.account(); return [...Store.get('jobs', []).map(j => ({ ...j, own: !!a && j.accountId === a.id })), ...SEED_JOBS]; },
+    async postJob(j) { const acc = Auth.need(), l = Store.get('jobs', []); l.unshift({ ...j, id: 'J-' + rid(5), accountId: acc.id }); Store.set('jobs', l); },
+    async removeJob(id) { const a = Auth.need(); Store.set('jobs', Store.get('jobs', []).filter(j => !(j.id === id && j.accountId === a.id))); },
+    async getJobApps() { const a = Auth.account(); return a ? Store.get('jobApps', []).filter(x => x.accountId === a.id) : []; },
+    async applyJob(a) { const acc = Auth.need(), l = Store.get('jobApps', []); l.push({ ...a, accountId: acc.id, charId: Auth.active()?.id || null, at: new Date().toISOString() }); Store.set('jobApps', l); },
+
+    /* Bewerbungen / Ideen */
+    async withdrawApplication(no) { const a = Auth.need(); Store.set('applications', Store.get('applications', []).filter(x => !(x.appNo === no && x.accountId === a.id && x.status === 'offen'))); },
+    async getIdeas() {
+      const acc = Auth.account(), votes = acc ? (Store.get('votes', {})[acc.id] || {}) : {};
+      return [...Store.get('ideas', []), ...SEED_IDEAS].map(i => ({ ...i, votes: i.votes + (votes[i.id] ? 1 : 0), voted: !!votes[i.id] })).sort((a, b) => b.votes - a.votes);
+    },
+    async addIdea(i) { const acc = Auth.need(), l = Store.get('ideas', []); l.unshift({ ...i, id: 'U-' + rid(5), votes: 0, by: acc.username, accountId: acc.id }); Store.set('ideas', l); },
+    async voteIdea(id) { const acc = Auth.need(), all = Store.get('votes', {}), mine = all[acc.id] || {}; mine[id] = !mine[id]; all[acc.id] = mine; Store.set('votes', all); },
+
+    /* ===== Verwaltung (nur Rolle „verwaltung“) ===== 🔌 später per RLS-Policy / Edge Function absichern */
+    async getAllCharacters()   { Auth.needStaff(); return Store.get('characters', []); },
+    async getAllAccounts()     { Auth.needStaff(); return Store.get('accounts', []).map(a => ({ id: a.id, username: a.username, role: a.role, status: a.status || 'approved', decidedBy: a.decidedBy || null, createdAt: a.createdAt })); },
+    async setAccountStatus(id, status) {                                   // 🔌 RPC set_account_status
+      Auth.needStaff(); if (!['pending', 'approved', 'rejected'].includes(status)) throw new Error('Ungültiger Status.');
+      const l = Store.get('accounts', []), a = l.find(x => x.id === id && x.role !== 'verwaltung'); if (!a) throw new Error('Konto nicht gefunden.');
+      a.status = status; a.decidedBy = Auth.account().username; Store.set('accounts', l);
+    },
+    async getAllVehicles()     { Auth.needStaff(); return Store.get('vehicles', []); },
+    async getAllBusinesses()   { Auth.needStaff(); return Store.get('businesses', []); },
+    async getAllLicenses()     { Auth.needStaff(); return Store.get('licenses', {}); },
+    async getAllReports()      { Auth.needStaff(); return Store.get('reports', []); },
+    async getAllApplications() { Auth.needStaff(); return Store.get('applications', []); },
+    async setReportStatus(no, status) {
+      Auth.needStaff(); const l = Store.get('reports', []), r = l.find(x => x.no === no); if (!r) throw new Error('Meldung nicht gefunden.');
+      r.status = status; r.handledBy = Auth.account().username; Store.set('reports', l);
+    },
+    async setBusinessStatus(regNo, status) {
+      Auth.needStaff(); const l = Store.get('businesses', []), b = l.find(x => x.regNo === regNo); if (!b) throw new Error('Gewerbe nicht gefunden.');
+      b.status = status; Store.set('businesses', l);
+    },
+    async addBusinessNote(regNo, text) {
+      Auth.needStaff(); const l = Store.get('businesses', []), b = l.find(x => x.regNo === regNo); if (!b) throw new Error('Gewerbe nicht gefunden.');
+      b.notes = [...(b.notes || []), { text, by: Auth.account().username, at: new Date().toISOString() }]; Store.set('businesses', l);
+    },
+    async setApplicationStatus(no, status) {
+      Auth.needStaff(); const l = Store.get('applications', []), a = l.find(x => x.appNo === no); if (!a) throw new Error('Bewerbung nicht gefunden.');
+      a.status = status; a.decidedBy = Auth.account().username; Store.set('applications', l);
+    },
+    async addNews({ title, tag, text }) {
+      Auth.needStaff(); const l = Store.get('news', []);
+      l.unshift({ id: 'N-' + rid(5), date: new Date().toISOString().slice(0, 10), tag, title, text, custom: true, by: Auth.account().username }); Store.set('news', l);
+    },
+    async removeNews(id) { Auth.needStaff(); Store.set('news', Store.get('news', []).filter(n => n.id !== id)); }
+  });
+
+  /* ---------------- UI-Helfer ---------------- */
+  const fullName = c => `${c.first} ${c.last}`;
+  const badge = (t, cls = 'bg-slate-100 text-slate-600') => `<span class="rounded-full px-2 py-0.5 text-xs font-semibold ${cls}">${t}</span>`;
+  const OK = 'bg-accent-50 text-accent-700', WARN = 'bg-amber-50 text-amber-700', BAD = 'bg-red-50 text-red-700';
+  const heading = (t, s) => `<div class="mb-5"><h2 class="text-xl font-extrabold text-navy-700">${t}</h2>${s ? `<p class="text-sm text-slate-500">${s}</p>` : ''}</div>`;
+  const kv = (k, v) => `<div><dt class="text-xs uppercase text-slate-500">${k}</dt><dd class="font-semibold text-slate-800">${v}</dd></div>`;
+  const needCitizen = `<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">⚠️ Für diesen Service benötigen Sie eine Bürgerkarte. <button data-open="citizen" class="font-semibold underline">Jetzt erstellen</button></div>`;
+  const emptyBox = msg => `<div class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">${msg}</div>`;
+  const plateHTML = p => { const [pre, ...rest] = String(p).split(' '); return `<span class="plate inline-flex h-10 overflow-hidden rounded border-2 border-slate-900 bg-white align-middle"><span class="flex w-6 items-center justify-center bg-blue-700 text-[9px] font-bold text-white">D</span><span class="flex items-center px-2 text-xl font-bold text-slate-900">${esc(pre)} ${esc(rest.join(' '))}</span></span>`; };
+  const normPlate = raw => { let s = raw.toUpperCase().replace(/[\s\-]/g, ''); if (s.startsWith(CONFIG.PLATE_PREFIX)) s = s.slice(CONFIG.PLATE_PREFIX.length); const r = parsePlate(s); return r ? `${CONFIG.PLATE_PREFIX} ${r}` : null; };
+  const err = msg => toast(msg, 'error');
+  const acct = () => PortalAPI.currentAccount();
+  const isStaff = () => acct()?.role === 'verwaltung';
+  const fmtDT = iso => new Date(iso).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+  const loginPrompt = `<div class="rounded-xl bg-navy-50 p-8 text-center"><div class="text-4xl">🔐</div><h2 class="mt-2 text-xl font-extrabold text-navy-700">Bitte anmelden</h2>
+    <p class="mx-auto mt-1 max-w-md text-sm text-slate-600">Dieser Dienst steht nur angemeldeten Bürgern zur Verfügung. Mit einem Konto speichern Sie Ihre Charaktere, Fahrzeuge und Gewerbe.</p>
+    <div class="mt-4 flex justify-center gap-2"><button data-open="auth" data-tab="login" class="btn-primary">Anmelden</button><button data-open="auth" data-tab="register" class="btn-secondary">Konto erstellen</button></div></div>`;
+  const noAccess = `<div class="rounded-xl bg-red-50 p-8 text-center"><div class="text-4xl">⛔</div><h2 class="mt-2 text-xl font-extrabold text-red-700">Kein Zugriff</h2>
+    <p class="mt-1 text-sm text-red-700">Dieser Bereich ist nur für Verwaltungsmitarbeiter der Stadt Saarbrücken vorgesehen.</p></div>`;
+
+  // Mini-Bürgerkarte (für Konto- und Behörden-Ansicht)
+  const miniCard = (c, active) => `<div class="relative overflow-hidden rounded-xl bg-gradient-to-br from-navy-900 via-navy-700 to-navy-500 p-4 text-white shadow">
+    <div class="flex gap-3"><div class="grid h-20 w-16 shrink-0 place-items-center overflow-hidden rounded-md border border-white/40 bg-navy-800">${c.photo ? `<img src="${esc(c.photo)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : '<span class="text-2xl opacity-60">👤</span>'}</div>
+      <div class="min-w-0 text-sm"><div class="flex items-center gap-2"><b class="truncate text-base">${esc(c.last)}, ${esc(c.first)}</b>${active ? '<span class="rounded bg-accent-500 px-1.5 text-[10px] font-bold">AKTIV</span>' : ''}</div>
+        <div class="font-mono text-xs text-navy-200">${esc(c.citizenId)}</div>
+        <div class="mt-1 text-xs text-navy-100">geb. ${fmtDate(c.birth)} • ${esc(c.district)}</div><div class="text-xs text-navy-200">gültig bis ${fmtDate(c.validUntil)}</div></div></div></div>`;
+
+  // Liste mit Suchfeld (Client-seitige Filterung)
+  function listWithSearch(w, { placeholder, items, text, card, empty }) {
+    w.insertAdjacentHTML('beforeend', `<input type="search" data-q class="input mb-4 max-w-md" placeholder="${esc(placeholder)}"><div data-list class="space-y-3"></div>`);
+    const q = w.querySelector('[data-q]'), list = w.querySelector('[data-list]');
+    const draw = () => { const s = q.value.trim().toLowerCase(), rows = items.filter(i => !s || text(i).toLowerCase().includes(s)); list.innerHTML = rows.length ? rows.map(card).join('') : emptyBox(empty); };
+    q.addEventListener('input', draw); draw();
+  }
+
+
+  // Dokument in neuem Fenster öffnen und drucken (Pop-ups müssen erlaubt sein)
+  function printDoc(title, rows, note) {
+    const w = window.open('', '_blank'); if (!w) return err('Pop-up wurde blockiert. Bitte erlauben Sie Pop-ups für diese Seite.');
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(title)}</title>
+      <style>body{font-family:Arial,sans-serif;max-width:680px;margin:40px auto;color:#0b1f3a}.head{border-bottom:4px solid #12b886;padding-bottom:10px;margin-bottom:24px}
+      h1{color:#13315c}table{width:100%;border-collapse:collapse}th{text-align:left;width:38%;color:#475569;font-weight:600}th,td{padding:8px 0;border-bottom:1px solid #e2e8f0}
+      .sig{margin-top:40px;font-size:12px;color:#64748b}</style>
+      <div class="head"><b style="font-size:20px">Stadt Saarbrücken</b><br>Bürgerportal</div><h1>${esc(title)}</h1>
+      <table>${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>
+      <p style="margin-top:24px">${esc(note || '')}</p>
+      <p class="sig">Ausgestellt am ${fmtDate(new Date())}. Maschinell erstellt.<br><i>Fiktives Dokument der RP-Community – keine echte Urkunde.</i></p>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 400);
+  }
+
+  // Event-Bindung: Buttons mit data-act, Formulare mit data-submit
+  function bind(wrap, h) {
+    wrap.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && h.click?.[b.dataset.act]) h.click[b.dataset.act](b, e); });
+    wrap.addEventListener('submit', e => { const f = e.target.closest('form[data-submit]'); if (f) { e.preventDefault(); h.submit?.[f.dataset.submit]?.(f, e); } });
+  }
+  const guard = async (btn, label, fn) => { try { await withLoading(btn, label, fn); } catch (ex) { err(ex.message || 'Fehler'); } };
+
+  /* =====================================================================
+     BEREICH: BÜRGERSERVICE
+     ===================================================================== */
+  const licenseCard = (l, c) => `
+    <div class="rounded-2xl bg-gradient-to-br from-accent-700 via-accent-600 to-navy-600 p-5 text-white shadow-lg max-w-md">
+      <div class="flex items-center justify-between"><b class="tracking-wide">FÜHRERSCHEIN</b><span class="font-mono text-sm">${esc(l.no)}</span></div>
+      <div class="mt-3 text-xl font-bold">${esc(c.last)}, ${esc(c.first)}</div>
+      <div class="mt-1 text-sm opacity-90">Ausgestellt: ${fmtDate(l.issuedAt)}</div>
+      <div class="mt-3 flex gap-2">${l.classes.map(k => `<span class="rounded-md bg-white/20 px-2.5 py-1 text-sm font-bold">${k}</span>`).join('')}</div>
+    </div>`;
+
+  const TAB_BUERGER = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'' },
+    { id:'karte', icon:'🪪', label:'Bürgerkarte', desc:'Personalausweis erstellen oder ansehen.', async render(w) {
+      const c = await PortalAPI.getCitizen();
+      w.innerHTML = heading('🪪 Bürgerkarte', 'Ihr digitaler Personalausweis') + (c ? `
+        <dl class="grid gap-4 sm:grid-cols-2 rounded-xl bg-slate-50 p-5">${kv('Name', esc(c.last + ', ' + c.first))}${kv('Bürger-ID', `<span class="font-mono">${esc(c.citizenId)}</span>`)}${kv('Geboren', fmtDate(c.birth))}${kv('Wohnbezirk', esc(c.district))}${kv('Gültig bis', fmtDate(c.validUntil))}${kv('Spielername', esc(c.username))}</dl>
+        <button data-open="citizen" class="btn-navy mt-5">Karte ansehen / als Bild speichern</button>` : `
+        <div class="rounded-xl bg-navy-50 p-6"><p class="font-semibold text-navy-700">Sie haben noch keine Bürgerkarte.</p><p class="text-sm text-slate-600">Die Ausstellung dauert etwa 2 Minuten.</p><button data-open="citizen" class="btn-primary mt-4">Jetzt erstellen</button></div>`);
+    } },
+    { id:'fuehrerschein', icon:'🚦', label:'Führerschein', desc:'Theorietest ablegen und Klassen erwerben.', async render(w) {
+      const c = await PortalAPI.getCitizen(); const lic = await PortalAPI.getLicense();
+      let html = heading('🚦 Führerschein', `Theorietest: mindestens ${QUIZ_PASS} von ${QUIZ.length} Fragen richtig.`);
+      if (!c) { w.innerHTML = html + needCitizen; return; }
+      if (lic) html += `<div class="mb-6">${licenseCard(lic, c)}</div>`;
+      const have = lic?.classes || [], avail = CLASSES.filter(k => !have.includes(k.id));
+      if (!avail.length) { w.innerHTML = html + `<p class="rounded-xl bg-accent-50 p-4 text-sm text-accent-700">🎉 Sie besitzen bereits alle Führerscheinklassen.</p>`; return; }
+      html += `<form data-submit="exam" class="space-y-6">
+        <div><span class="label">Gewünschte Klassen</span><div class="grid gap-2 sm:grid-cols-2">${avail.map(k => `
+          <label class="choice flex items-center gap-3"><input type="checkbox" name="cls" value="${k.id}"><span class="text-xl">${k.icon}</span><span class="text-sm font-semibold">${k.name}<br><span class="font-normal text-slate-500">ab ${k.minAge} Jahren${k.needs ? ' • setzt B voraus' : ''}</span></span></label>`).join('')}</div></div>
+        <div class="space-y-5">${QUIZ.map((q, i) => `<fieldset><legend class="font-semibold text-slate-800">${i + 1}. ${q.q}</legend><div class="mt-2 grid gap-2">
+          ${q.o.map((o, j) => ({ o, j })).sort(() => Math.random() - .5).map(({ o, j }) => `<label class="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 p-2.5 text-sm hover:bg-slate-50"><input type="radio" name="q${i}" value="${j}" required> ${o}</label>`).join('')}</div></fieldset>`).join('')}</div>
+        <div data-result></div>
+        <button class="btn-primary">Prüfung abgeben</button></form>`;
+      w.innerHTML = html;
+      bind(w, { submit: { exam: async f => {
+        const fd = new FormData(f), picked = fd.getAll('cls'), age = ageFrom(c.birth);
+        if (!picked.length) return err('Bitte mindestens eine Klasse wählen.');
+        for (const id of picked) { const k = CLASSES.find(x => x.id === id);
+          if (age < k.minAge) return err(`Klasse ${id} erst ab ${k.minAge} Jahren (Ihre Spielfigur ist ${age}).`);
+          if (k.needs && !have.includes(k.needs) && !picked.includes(k.needs)) return err(`Klasse ${id} setzt Klasse ${k.needs} voraus.`); }
+        let score = 0; const wrong = [];
+        QUIZ.forEach((q, i) => (+fd.get('q' + i) === q.a) ? score++ : wrong.push(i));
+        const res = f.querySelector('[data-result]');
+        if (score < QUIZ_PASS) {
+          res.innerHTML = `<div class="rounded-xl bg-red-50 p-4 text-sm text-red-700"><b>Leider nicht bestanden (${score}/${QUIZ.length}).</b><ul class="mt-2 list-disc pl-5">${wrong.map(i => `<li>Frage ${i + 1}: richtig wäre „${QUIZ[i].o[QUIZ[i].a]}“</li>`).join('')}</ul></div>`; return; }
+        await guard(f.querySelector('button.btn-primary'), 'Wird ausgestellt …', async () => { await PortalAPI.saveLicense(picked); toast(`Bestanden (${score}/${QUIZ.length})! Führerschein ausgestellt.`, 'success'); route(); });
+      } } });
+    } },
+    { id:'melde', icon:'📄', label:'Ummeldung & Bescheinigungen', desc:'Wohnbezirk ändern, Bescheinigungen drucken.', async render(w) {
+      const c = await PortalAPI.getCitizen(); w.innerHTML = heading('📄 Ummeldung & Bescheinigungen');
+      if (!c) { w.innerHTML += needCitizen; return; }
+      w.innerHTML += `<div class="grid gap-6 md:grid-cols-2">
+        <form data-submit="move" class="space-y-3 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Wohnbezirk ummelden</h3>
+          <p class="text-sm text-slate-500">Aktuell: <b>${esc(c.district)}</b></p>
+          <select name="district" class="input">${DISTRICTS.map(d => `<option ${d === c.district ? 'selected' : ''}>${d}</option>`).join('')}</select>
+          <button class="btn-primary">Ummelden</button></form>
+        <div class="space-y-3 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Bescheinigungen</h3>
+          <button data-act="meldebesch" class="btn-secondary w-full">📄 Meldebescheinigung drucken</button>
+          <button data-act="fuehrungs" class="btn-secondary w-full">📄 Auskunft „Keine Einträge“ drucken</button></div></div>`;
+      const rows = () => [['Name', fullName(c)], ['Geburtsdatum', fmtDate(c.birth)], ['Bürger-ID', c.citizenId]];
+      bind(w, {
+        click: { meldebesch: async () => { const cc = await PortalAPI.getCitizen(); printDoc('Meldebescheinigung', [...rows(), ['Hauptwohnsitz', `Saarbrücken, ${cc.district}`]], 'Die oben genannte Person ist in der Stadt Saarbrücken gemeldet.'); },
+                 fuehrungs: () => printDoc('Behördliche Auskunft', [...rows()], 'Zum genannten Zeitpunkt liegen im Stadtregister keine Einträge vor.') },
+        submit: { move: async f => { await guard(f.querySelector('button'), 'Wird gespeichert …', async () => { await PortalAPI.updateCitizen({ district: new FormData(f).get('district') }); toast('Ummeldung erfolgreich.', 'success'); route(); }); } } });
+    } },
+    { id:'maengel', icon:'🛠️', label:'Mängelmelder', desc:'Schlaglöcher, defekte Ampeln & Co. melden.', async render(w) {
+      const list = await PortalAPI.getReports();
+      w.innerHTML = heading('🛠️ Mängelmelder', 'Melden Sie Probleme im Stadtgebiet. Die Stadt kümmert sich darum.') + `
+        <form data-submit="report" class="grid gap-4 sm:grid-cols-2">
+          <div><label class="label">Art des Mangels</label><select name="cat" class="input"><option>Schlagloch</option><option>Defekte Ampel</option><option>Müll / Sperrmüll</option><option>Liegengebliebenes Fahrzeug</option><option>Sonstiges</option></select></div>
+          <div><label class="label">Ort</label><select name="street" class="input">${STREETS.map(s => `<option>${s}</option>`).join('')}</select></div>
+          <div class="sm:col-span-2"><label class="label">Beschreibung</label><textarea name="text" rows="3" required maxlength="300" class="input" placeholder="Was ist das Problem?"></textarea></div>
+          <div class="sm:col-span-2"><button class="btn-primary">Meldung absenden</button></div></form>
+        <h3 class="mt-8 font-bold text-navy-700">Meine Meldungen</h3>
+        <div class="mt-3 space-y-3">${list.length ? list.map(r => `<div class="flex items-start justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm"><div><b>${esc(r.cat)}</b> – ${esc(r.street)} ${badge(esc(r.status), WARN)}<p class="mt-1 text-slate-600">${esc(r.text)}</p><p class="text-xs text-slate-400">${esc(r.no)} • ${fmtDate(r.createdAt)}</p></div><button data-act="del" data-no="${esc(r.no)}" class="text-xs text-red-600 hover:underline">Löschen</button></div>`).join('') : emptyBox('Noch keine Meldungen.')}</div>`;
+      bind(w, {
+        click: { del: async b => { await PortalAPI.removeReport(b.dataset.no); route(); } },
+        submit: { report: async f => { const d = Object.fromEntries(new FormData(f)); await guard(f.querySelector('button'), 'Wird gesendet …', async () => { const r = await PortalAPI.addReport(d); toast(`Meldung ${r.no} eingegangen.`, 'success'); route(); }); } } });
+    } }
+  ];
+
+  /* =====================================================================
+     BEREICH: KFZ
+     ===================================================================== */
+  const TAB_KFZ = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'' },
+    { id:'neu', icon:'➕', label:'Neuzulassung', desc:'Fahrzeug anmelden und Kennzeichen erhalten.', async render(w) {
+      const lic = await PortalAPI.getLicense();
+      w.innerHTML = heading('➕ Neuzulassung', 'Fahrzeug in wenigen Sekunden zulassen.') + `
+        ${lic ? '' : `<p class="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">💡 Tipp: Sie haben noch keinen Führerschein. <a class="font-semibold underline" href="#/buerger/fuehrerschein">Jetzt Theorietest ablegen</a></p>`}
+        <div class="rounded-xl bg-navy-50 p-6"><ul class="mb-4 space-y-1 text-sm text-navy-700"><li>✔ Kennzeichen mit Stadtcode <b>NS</b></li><li>✔ Wunschkennzeichen möglich (siehe Tab „Wunschkennzeichen“)</li><li>✔ PKW, LKW, Transporter, Bus, Motorrad</li></ul>
+        <button data-open="vehicle" class="btn-primary">Zulassung starten</button></div>`;
+    } },
+    { id:'meine', icon:'🚘', label:'Meine Fahrzeuge', desc:'Verwalten, ummelden, abmelden, Fahrzeugschein.', async render(w) {
+      const vs = await PortalAPI.getVehicles(), myChars = await PortalAPI.getCharacters();
+      w.innerHTML = heading('🚘 Meine Fahrzeuge', `${vs.length} angemeldet (alle Ihre Charaktere)`) + `<datalist id="dl-cids">${myChars.map(c => `<option value="${esc(c.citizenId)}">${esc(fullNameOf(c))}</option>`).join('')}</datalist>`;
+      if (!vs.length) { w.innerHTML += emptyBox('Noch keine Fahrzeuge. <button data-open="vehicle" class="font-semibold text-navy-600 underline">Jetzt anmelden</button>'); return; }
+      w.innerHTML += `<div class="space-y-4">${vs.map(v => `<article class="rounded-xl border border-slate-200 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3"><div>${plateHTML(v.plate)}${v.status === 'gestohlen' ? ' ' + badge('Gestohlen gemeldet', BAD) : ''}<p class="mt-2 font-bold text-navy-700">${esc(v.model)} <span class="font-normal text-slate-500">• ${esc(v.type)}${v.color ? ' • ' + esc(v.color) : ''}</span></p><p class="text-sm text-slate-500">Halter: ${esc(v.owner)}</p></div>
+          <div class="flex gap-2"><button data-act="schein" data-id="${v.id}" class="btn-secondary text-sm">📄 Fahrzeugschein</button><button data-act="abmelden" data-id="${v.id}" class="btn-secondary text-sm text-red-600">Abmelden</button></div></div>
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+          <details><summary class="cursor-pointer text-sm font-semibold text-navy-600">Halterwechsel</summary><form data-submit="transfer" class="mt-2 flex gap-2"><input type="hidden" name="id" value="${v.id}"><input name="cid" required list="dl-cids" class="input uppercase" placeholder="Bürger-ID, z. B. NS-AB12CD34"><button class="btn-navy text-sm">Übertragen</button></form></details>
+          <details><summary class="cursor-pointer text-sm font-semibold text-navy-600">Kennzeichen ändern</summary><form data-submit="replate" class="mt-2 flex gap-2"><input type="hidden" name="id" value="${v.id}"><input name="plate" class="input uppercase" placeholder="AB 123 (leer = Zufall)"><button class="btn-navy text-sm">Ändern</button></form></details></div></article>`).join('')}</div>`;
+      bind(w, {
+        click: {
+          schein: b => { const v = vs.find(x => x.id === b.dataset.id); printDoc('Zulassungsbescheinigung (Fahrzeugschein)', [['Kennzeichen', v.plate], ['Fahrzeugart', v.type], ['Modell', v.model], ['Farbe', v.color || '–'], ['Halter', v.owner], ['Zugelassen am', fmtDate(v.createdAt)]], 'Das Fahrzeug ist im Stadtregister Saarbrücken zugelassen.'); },
+          abmelden: async b => { if (!confirm('Fahrzeug wirklich abmelden? Das Kennzeichen wird wieder frei.')) return; await PortalAPI.removeVehicle(b.dataset.id); toast('Fahrzeug abgemeldet.', 'success'); route(); } },
+        submit: {
+          transfer: async f => { const d = Object.fromEntries(new FormData(f)); const v = await PortalAPI.transferVehicle(d.id, d.cid); toast(`Halterwechsel durchgeführt: neuer Halter ${v.owner}.`, 'success'); route(); },
+          replate: async f => { const d = Object.fromEntries(new FormData(f)); let rest = d.plate.trim() ? parsePlate(d.plate) : randomPlateRest();
+            if (!rest) return err('Ungültiges Kennzeichen (1–2 Buchstaben + 1–4 Ziffern).');
+            let plate = `${CONFIG.PLATE_PREFIX} ${rest}`;
+            if (await PortalAPI.plateExists(plate)) { if (d.plate.trim()) return err(`${plate} ist bereits vergeben.`); while (await PortalAPI.plateExists(plate)) plate = `${CONFIG.PLATE_PREFIX} ${randomPlateRest()}`; }
+            await PortalAPI.updateVehicle(d.id, { plate }); toast(`Neues Kennzeichen: ${plate}`, 'success'); route(); } } });
+    } },
+    { id:'wunsch', icon:'⭐', label:'Wunschkennzeichen', desc:'Verfügbarkeit prüfen und 24 h reservieren.', async render(w) {
+      const res = await PortalAPI.getReservations();
+      w.innerHTML = heading('⭐ Wunschkennzeichen', 'Prüfen Sie die Verfügbarkeit und reservieren Sie Ihr Kennzeichen für 24 Stunden.') + `
+        <form data-submit="avail" class="flex gap-2 max-w-md"><input name="plate" class="input uppercase" placeholder="z. B. AB 123" required maxlength="8"><button class="btn-navy">Prüfen</button></form><div id="avail-result" class="mt-4"></div>
+        <h3 class="mt-8 font-bold text-navy-700">Meine Reservierungen</h3>
+        <div class="mt-3 space-y-2">${res.length ? res.map(r => `<div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-3">${plateHTML(r.plate)}<span class="text-xs text-slate-500">gültig bis ${new Date(r.until).toLocaleString('de-DE', { dateStyle:'short', timeStyle:'short' })}</span>
+          <span class="flex gap-2"><button data-act="use" data-plate="${esc(r.plate)}" class="btn-primary text-sm">Jetzt zulassen</button><button data-act="free" data-plate="${esc(r.plate)}" class="btn-secondary text-sm">Freigeben</button></span></div>`).join('') : emptyBox('Keine aktiven Reservierungen.')}</div>`;
+      bind(w, {
+        click: {
+          reserve: async b => { await PortalAPI.reservePlate(b.dataset.plate); toast('Kennzeichen reserviert.', 'success'); route(); },
+          free: async b => { await PortalAPI.cancelReservation(b.dataset.plate); route(); },
+          use: b => { openModal('vehicle'); const inp = $('#v-plate'); inp.value = b.dataset.plate.replace(CONFIG.PLATE_PREFIX + ' ', ''); inp.dispatchEvent(new Event('input')); } },
+        submit: { avail: async f => {
+          const p = normPlate(new FormData(f).get('plate')); const out = $('#avail-result', w); if (!p) return err('Ungültig: 1–2 Buchstaben + 1–4 Ziffern.');
+          const taken = await PortalAPI.plateExists(p), mine = res.some(r => r.plate === p);
+          out.innerHTML = taken ? `<div class="rounded-xl bg-red-50 p-4 text-sm text-red-700">${plateHTML(p)} ist bereits vergeben.</div>`
+            : mine ? `<div class="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">${plateHTML(p)} ist bereits von Ihnen reserviert.</div>`
+            : `<div class="flex flex-wrap items-center gap-3 rounded-xl bg-accent-50 p-4 text-sm text-accent-700">${plateHTML(p)} ist <b>frei</b>! <button data-act="reserve" data-plate="${esc(p)}" class="btn-primary text-sm">24 h reservieren</button></div>`;
+        } } });
+    } },
+    { id:'diebstahl', icon:'🚨', label:'Diebstahl melden', desc:'Fahrzeug als gestohlen melden oder zurückmelden.', async render(w) {
+      const vs = await PortalAPI.getVehicles();
+      w.innerHTML = heading('🚨 Diebstahl / Verlust melden', 'Gemeldete Fahrzeuge werden von der Behörde als „zur Fahndung ausgeschrieben“ geführt.');
+      if (!vs.length) { w.innerHTML += emptyBox('Sie haben keine angemeldeten Fahrzeuge.'); return; }
+      w.innerHTML += `<div class="space-y-3">${vs.map(v => `<div class="rounded-xl border border-slate-200 p-4"><div class="flex flex-wrap items-center justify-between gap-3">
+        <div>${plateHTML(v.plate)} <span class="ml-2 text-sm text-slate-600">${esc(v.model)}</span> ${v.status === 'gestohlen' ? badge('Gestohlen', BAD) : badge('Normal', OK)}${v.caseNo ? `<p class="mt-1 text-xs text-slate-500">Aktenzeichen ${esc(v.caseNo)} • letzter Ort: ${esc(v.lastSeen)}</p>` : ''}</div>
+        ${v.status === 'gestohlen' ? `<button data-act="found" data-id="${v.id}" class="btn-primary text-sm">Wieder aufgefunden</button>`
+          : `<form data-submit="stolen" class="flex gap-2"><input type="hidden" name="id" value="${v.id}"><select name="where" class="input text-sm">${STREETS.map(s => `<option>${s}</option>`).join('')}</select><button class="btn bg-red-600 text-white hover:bg-red-700 text-sm">Als gestohlen melden</button></form>`}</div></div>`).join('')}</div>`;
+      bind(w, {
+        click: { found: async b => { await PortalAPI.updateVehicle(b.dataset.id, { status: 'ok', caseNo: null, lastSeen: null }); toast('Schön, dass es wieder da ist!', 'success'); route(); } },
+        submit: { stolen: async f => { const d = Object.fromEntries(new FormData(f)); await PortalAPI.updateVehicle(d.id, { status: 'gestohlen', caseNo: 'AZ-' + rid(5), lastSeen: d.where }); toast('Diebstahl gemeldet. Die Polizei wurde informiert.', 'success'); route(); } } });
+    } }
+  ];
+
+  /* =====================================================================
+     BEREICH: GEWERBE
+     ===================================================================== */
+  async function occMap() {                       // belegte Flächen aus dem Register (alle Konten)
+    const m = {}; (await PortalAPI.getOccupancy()).forEach(o => m[o.plotId] = { name: o.name, mine: o.mine }); return m;
+  }
+  function mapSVG(m) {
+    const bg = `<rect width="640" height="400" fill="#ecfdf5"/><rect x="0" y="140" width="640" height="50" fill="#cbd5e1"/><rect x="300" y="0" width="40" height="330" fill="#cbd5e1"/><path d="M0 340 Q160 310 320 345 T640 335 V400 H0Z" fill="#93c5fd"/>
+      <text x="40" y="170" font-size="12" fill="#475569">Hauptstraße</text><text x="231" y="378" font-size="12" fill="#1d4e89">Saarbrücken-Aue</text>`;
+    return bg + PLOTS.map(p => { const o = m[p.id]; return `<g class="plot ${o ? (o.mine ? 'selected' : 'occupied') : ''}" data-id="${p.id}" style="cursor:pointer"><rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" ${o && !o.mine ? '' : ''}/>
+      <text x="${p.x + p.w / 2}" y="${p.y + p.h / 2 - 2}" text-anchor="middle">${p.id}</text><text x="${p.x + p.w / 2}" y="${p.y + p.h / 2 + 14}" text-anchor="middle" style="font-weight:400;font-size:10px">${o ? esc(o.name.slice(0, 18)) : esc(p.name)}</text></g>`; }).join('');
+  }
+
+  const TAB_GEWERBE = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'' },
+    { id:'neu', icon:'➕', label:'Gewerbe anmelden', desc:'In 3 Schritten zur eigenen Firma.', render(w) {
+      w.innerHTML = heading('➕ Gewerbe anmelden', 'Firmenname, Branche, Standort – fertig.') + `<div class="rounded-xl bg-navy-50 p-6"><ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-navy-700"><li>Firmendaten eingeben</li><li>Branche wählen</li><li>Standort auf der Stadtkarte auswählen</li></ol><button data-open="business" class="btn-primary">Anmeldung starten</button></div>`;
+    } },
+    { id:'meine', icon:'🏢', label:'Meine Gewerbe', desc:'Gewerbeschein, Umzug, Abmeldung.', async render(w) {
+      const bs = await PortalAPI.getBusinesses(), m = await occMap(), free = PLOTS.filter(p => !m[p.id]);
+      w.innerHTML = heading('🏢 Meine Gewerbe', `${bs.length} angemeldet`);
+      if (!bs.length) { w.innerHTML += emptyBox('Noch kein Gewerbe. <button data-open="business" class="font-semibold text-navy-600 underline">Jetzt anmelden</button>'); return; }
+      w.innerHTML += `<div class="space-y-4">${bs.map(b => { const ind = INDUSTRIES.find(i => i.id === b.industry); return `<article class="rounded-xl border border-slate-200 p-5">
+        <div class="flex flex-wrap items-start justify-between gap-3"><div><h3 class="text-lg font-bold text-navy-700">${ind?.icon || ''} ${esc(b.name)}</h3><p class="text-sm text-slate-500">${esc(b.legalForm)} • ${esc(ind?.name || '')} • <span class="font-mono">${esc(b.regNo)}</span></p><p class="mt-1 text-sm">👤 ${esc(b.owner)} • 📞 ${esc(b.phone || '–')} • 📍 ${esc(b.plotName)} (${esc(b.plotId)}) • 👥 ${(b.staff || []).length} Mitarbeiter</p></div>
+          <div class="flex gap-2"><button data-act="schein" data-id="${b.regNo}" class="btn-secondary text-sm">📄 Gewerbeschein</button><button data-act="abmelden" data-id="${b.regNo}" class="btn-secondary text-sm text-red-600">Abmelden</button></div></div>
+        ${b.status === 'gesperrt' ? `<p class="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">⛔ Dieses Gewerbe wurde von der Behörde gesperrt. Bitte beachten Sie die Hinweise.</p>` : ''}
+        ${(b.notes || []).length ? `<div class="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800"><b>Hinweise der Behörde</b><ul class="mt-1 list-disc pl-5">${b.notes.map(n => `<li>${esc(n.text)} <span class="text-xs text-amber-600">(${esc(n.by)}, ${fmtDate(n.at)})</span></li>`).join('')}</ul></div>` : ''}
+        <details class="mt-3"><summary class="cursor-pointer text-sm font-semibold text-navy-600">Kontaktdaten ändern</summary><form data-submit="contact" class="mt-2 grid gap-2 sm:grid-cols-3"><input type="hidden" name="regNo" value="${b.regNo}"><input name="phone" class="input" value="${esc(b.phone || '')}" placeholder="555-1234" maxlength="8"><input name="hours" class="input" value="${esc(b.hours || '')}" placeholder="Öffnungszeiten" maxlength="40"><button class="btn-navy text-sm">Speichern</button></form></details>
+        <details class="mt-3"><summary class="cursor-pointer text-sm font-semibold text-navy-600">Standort wechseln</summary>
+          ${free.length ? `<form data-submit="move" class="mt-2 flex gap-2"><input type="hidden" name="regNo" value="${b.regNo}"><select name="plot" class="input">${free.map(p => `<option value="${p.id}">${p.id} – ${esc(p.name)}</option>`).join('')}</select><button class="btn-navy text-sm">Umziehen</button></form>` : '<p class="mt-2 text-sm text-slate-500">Aktuell sind keine freien Flächen verfügbar.</p>'}</details></article>`; }).join('')}</div>`;
+      bind(w, {
+        click: {
+          schein: b => { const x = bs.find(y => y.regNo === b.dataset.id); printDoc('Gewerbeschein', [['Firma', x.name], ['Rechtsform', x.legalForm], ['Inhaber', x.owner], ['Branche', INDUSTRIES.find(i => i.id === x.industry)?.name || ''], ['Standort', `${x.plotName} (${x.plotId})`], ['Gewerbe-Nr.', x.regNo], ['Angemeldet am', fmtDate(x.createdAt)]], 'Das oben genannte Gewerbe ist in der Stadt Saarbrücken ordnungsgemäß angemeldet.'); },
+          abmelden: async b => { if (!confirm('Gewerbe wirklich abmelden? Der Standort wird wieder frei, Stellenanzeigen werden gelöscht.')) return; await PortalAPI.removeBusiness(b.dataset.id); toast('Gewerbe abgemeldet.', 'success'); route(); } },
+        submit: { contact: async f => { const d = Object.fromEntries(new FormData(f)); await PortalAPI.updateBusiness(d.regNo, { phone: d.phone.trim(), hours: d.hours.trim() }); toast('Kontaktdaten gespeichert.', 'success'); route(); },
+          move: async f => { const d = Object.fromEntries(new FormData(f)); const mm = await occMap(); if (mm[d.plot]) return err('Fläche wurde gerade vergeben.');
+          const p = PLOTS.find(x => x.id === d.plot); await PortalAPI.updateBusiness(d.regNo, { plotId: p.id, plotName: p.name }); toast(`Umzug nach ${p.name} abgeschlossen.`, 'success'); route(); } } });
+    } },
+    { id:'karte', icon:'🗺️', label:'Standortkarte', desc:'Freie und vergebene Gewerbeflächen ansehen.', public:true, async render(w) {
+      const m = await occMap();
+      w.innerHTML = heading('🗺️ Standortkarte', 'Klicken Sie auf eine Fläche für Details.') + `<div class="rounded-xl border border-slate-200 bg-slate-50 p-2"><svg id="sv-map" viewBox="0 0 640 400" class="h-auto w-full rounded-lg">${mapSVG(m)}</svg></div>
+        <div class="mt-3 flex flex-wrap gap-4 text-xs text-slate-600"><span><i class="inline-block h-3 w-3 rounded border border-navy-500 bg-blue-200"></i> frei</span><span><i class="inline-block h-3 w-3 rounded border border-slate-400 bg-slate-200"></i> vergeben</span><span><i class="inline-block h-3 w-3 rounded bg-accent-500"></i> Ihr Gewerbe</span></div>
+        <div id="plot-info" class="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Wählen Sie eine Fläche auf der Karte.</div>`;
+      w.querySelector('#sv-map').addEventListener('click', e => { const g = e.target.closest('.plot'); if (!g) return; const p = PLOTS.find(x => x.id === g.dataset.id), o = m[p.id];
+        w.querySelector('#plot-info').innerHTML = `<b class="text-navy-700">${p.id} – ${esc(p.name)}</b><br>${o ? `Belegt von <b>${esc(o.name)}</b>${o.mine ? ' (Ihr Gewerbe)' : ''}` : 'Diese Fläche ist <b class="text-accent-700">frei</b>. <button data-open="business" class="font-semibold text-navy-600 underline">Gewerbe hier anmelden</button>'}`; });
+    } },
+    { id:'register', icon:'📒', label:'Gewerberegister', desc:'Alle Betriebe mit Telefonnummer, Standort und Öffnungszeiten.', public:true, async render(w) {
+      const list = (await PortalAPI.getRegister()).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      w.innerHTML = heading('📒 Gewerberegister', `${list.length} eingetragene Betriebe – öffentlich einsehbar, keine Anmeldung nötig.`) +
+        `<div class="mb-4 flex flex-wrap gap-2"><input type="search" data-q class="input max-w-xs" placeholder="Name, Telefon, Inhaber …">
+         <select data-ind class="input max-w-xs"><option value="">Alle Branchen</option>${INDUSTRIES.map(i => `<option value="${i.id}">${i.icon} ${i.name}</option>`).join('')}</select></div>
+         <div data-list class="grid gap-4 md:grid-cols-2"></div>`;
+      const q = w.querySelector('[data-q]'), sel = w.querySelector('[data-ind]'), box = w.querySelector('[data-list]');
+      const card = b => { const ind = INDUSTRIES.find(i => i.id === b.industry);
+        return `<article class="rounded-xl border border-slate-200 p-4"><div class="flex items-start justify-between gap-2"><div><h3 class="font-bold text-navy-700">${ind?.icon || ''} ${esc(b.name)}</h3><p class="text-sm text-slate-500">${esc(ind?.name || '')} • ${esc(b.legalForm || '')}</p></div>${b.status === 'gesperrt' ? badge('Ruht', BAD) : badge('Geöffnet', OK)}</div>
+          <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">${kv('Telefon', b.phone ? `📞 <span class="font-mono">${esc(b.phone)}</span> <button data-act="copy" data-v="${esc(b.phone)}" class="ml-1 text-xs font-semibold text-navy-600 underline">kopieren</button>` : '–')}${kv('Standort', '📍 ' + esc(b.plotName || '–'))}${kv('Öffnungszeiten', esc(b.hours || 'nicht angegeben'))}${kv('Inhaber', esc(b.owner || '–'))}</dl>
+          ${b.description ? `<p class="mt-3 text-sm text-slate-600">${esc(b.description)}</p>` : ''}<p class="mt-2 text-xs text-slate-400">Gewerbe-Nr. ${esc(b.regNo)}</p></article>`; };
+      const draw = () => { const s = q.value.trim().toLowerCase();
+        const rows = list.filter(b => (!sel.value || b.industry === sel.value) && (!s || `${b.name} ${b.phone} ${b.owner} ${b.plotName} ${b.description || ''}`.toLowerCase().includes(s)));
+        box.innerHTML = rows.length ? rows.map(card).join('') : `<div class="md:col-span-2">${emptyBox('Keine Betriebe gefunden.')}</div>`; };
+      q.addEventListener('input', draw); sel.addEventListener('change', draw); draw();
+      bind(w, { click: { copy: b => { navigator.clipboard?.writeText(b.dataset.v); toast('Nummer kopiert: ' + b.dataset.v, 'success'); } } });
+    } },
+    { id:'team', icon:'👥', label:'Mitarbeiter', desc:'Mitarbeiter einstellen und verwalten.', async render(w) {
+      const bs = await PortalAPI.getBusinesses(); w.innerHTML = heading('👥 Mitarbeiter', 'Verwalten Sie das Team Ihrer Firmen.');
+      if (!bs.length) { w.innerHTML += emptyBox('Sie benötigen zuerst ein angemeldetes Gewerbe.'); return; }
+      w.innerHTML += `<div class="space-y-5">${bs.map(b => `<article class="rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">${esc(b.name)}</h3>
+        <ul class="mt-3 divide-y divide-slate-100 text-sm">${(b.staff || []).length ? b.staff.map((s, i) => `<li class="flex items-center justify-between py-2"><span><b>${esc(s.name)}</b> <span class="text-slate-500">• ${esc(s.role)} • seit ${fmtDate(s.since)}</span></span><button data-act="fire" data-reg="${b.regNo}" data-i="${i}" class="text-xs text-red-600 hover:underline">Entlassen</button></li>`).join('') : '<li class="py-2 text-slate-500">Noch keine Mitarbeiter.</li>'}</ul>
+        <form data-submit="hire" class="mt-3 flex flex-wrap gap-2"><input type="hidden" name="regNo" value="${b.regNo}"><input name="name" required maxlength="40" class="input flex-1 min-w-[10rem]" placeholder="Name des Mitarbeiters"><select name="role" class="input w-40"><option>Fahrer</option><option>Verkäufer</option><option>Mechaniker</option><option>Service</option><option>Sonstiges</option></select><button class="btn-primary text-sm">Einstellen</button></form></article>`).join('')}</div>`;
+      bind(w, {
+        click: { fire: async b => { const x = bs.find(y => y.regNo === b.dataset.reg); const staff = [...(x.staff || [])]; staff.splice(+b.dataset.i, 1); await PortalAPI.updateBusiness(x.regNo, { staff }); route(); } },
+        submit: { hire: async f => { const d = Object.fromEntries(new FormData(f)); const x = bs.find(y => y.regNo === d.regNo); await PortalAPI.updateBusiness(x.regNo, { staff: [...(x.staff || []), { name: d.name.trim(), role: d.role, since: new Date().toISOString() }] }); toast('Mitarbeiter eingestellt.', 'success'); route(); } } });
+    } },
+    { id:'jobs', icon:'📌', label:'Stellenmarkt', desc:'Stellen ausschreiben oder bewerben.', public:true, async render(w) {
+      const [jobs, apps, bs, c] = await Promise.all([PortalAPI.getJobs(), PortalAPI.getJobApps(), PortalAPI.getBusinesses(), PortalAPI.getCitizen()]);
+      w.innerHTML = heading('📌 Stellenmarkt', 'Freie Jobs in Saarbrücken – direkt bewerben, ohne Admin.') + (acct() ? '' : '<p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">💡 Zum Bewerben oder Ausschreiben bitte <button data-open="auth" data-tab="login" class="font-semibold underline">anmelden</button>.</p>') + `<div class="grid gap-6 lg:grid-cols-3"><div class="space-y-3 lg:col-span-2">
+        ${jobs.map(j => { const ind = INDUSTRIES.find(i => i.id === j.industry), done = apps.some(a => a.jobId === j.id); return `<article class="rounded-xl border border-slate-200 p-4"><div class="flex items-start justify-between gap-3"><div><h3 class="font-bold text-navy-700">${esc(j.title)}</h3><p class="text-sm text-slate-500">${ind?.icon || ''} ${esc(j.company)} • ${j.slots} Stelle(n)</p></div>${j.own ? `<button data-act="deljob" data-id="${j.id}" class="text-xs text-red-600 hover:underline">Löschen</button>` : done ? badge('Beworben ✔', OK) : ''}</div>
+          <p class="mt-2 text-sm text-slate-600">${esc(j.desc)}</p>
+          ${j.own || done ? '' : `<details class="mt-3"><summary class="cursor-pointer text-sm font-semibold text-accent-700">Jetzt bewerben</summary><form data-submit="apply" class="mt-2 space-y-2"><input type="hidden" name="jobId" value="${j.id}"><input name="name" required class="input" placeholder="Ihr Name" value="${c ? esc(fullName(c)) : ''}"><textarea name="msg" rows="2" class="input" placeholder="Kurze Nachricht (optional)"></textarea><button class="btn-primary text-sm">Bewerbung senden</button></form></details>`}</article>`; }).join('')}</div>
+        <aside><form data-submit="post" class="space-y-3 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Stelle ausschreiben</h3>
+          ${bs.length ? `<select name="regNo" class="input">${bs.map(b => `<option value="${b.regNo}">${esc(b.name)}</option>`).join('')}</select><input name="title" required maxlength="40" class="input" placeholder="Jobtitel"><textarea name="desc" required rows="3" maxlength="200" class="input" placeholder="Aufgaben & Anforderungen"></textarea><input name="slots" type="number" min="1" max="20" value="1" class="input"><button class="btn-primary w-full">Veröffentlichen</button>`
+          : '<p class="text-sm text-slate-500">Dafür benötigen Sie ein angemeldetes Gewerbe.</p>'}</form></aside></div>`;
+      bind(w, {
+        click: { deljob: async b => { await PortalAPI.removeJob(b.dataset.id); route(); } },
+        submit: {
+          apply: async f => { const d = Object.fromEntries(new FormData(f)); await PortalAPI.applyJob(d); toast('Bewerbung versendet!', 'success'); route(); },
+          post: async f => { const d = Object.fromEntries(new FormData(f)); const b = bs.find(x => x.regNo === d.regNo); await PortalAPI.postJob({ regNo: b.regNo, company: b.name, industry: b.industry, title: d.title.trim(), desc: d.desc.trim(), slots: +d.slots }); toast('Stelle veröffentlicht.', 'success'); route(); } } });
+    } }
+  ];
+
+  /* =====================================================================
+     BEREICH: KARRIERE
+     ===================================================================== */
+  const TAB_KARRIERE = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'' },
+    { id:'stellen', icon:'📋', label:'Offene Stellen', desc:'Behörden, Anforderungen und freie Plätze.', public:true, async render(w) {
+      const apps = await PortalAPI.getApplications();
+      w.innerHTML = heading('📋 Offene Stellen', 'Diese Stellen werden manuell geprüft.') + `<div class="grid gap-4 md:grid-cols-2">${FACTIONS.map(f => { const i = FACTION_INFO[f.id], open = apps.some(a => a.faction === f.id && a.status === 'offen');
+        return `<article class="rounded-xl border border-slate-200 p-5"><div class="flex items-center justify-between"><h3 class="font-bold text-navy-700">${f.icon} ${f.name}</h3>${badge(i.slots + ' freie Plätze', OK)}</div><p class="mt-1 text-sm text-slate-600">${f.desc}</p>
+          <ul class="mt-3 list-disc pl-5 text-sm text-slate-600">${i.req.map(r => `<li>${r}</li>`).join('')}</ul>
+          <button data-act="apply" data-id="${f.id}" class="btn-primary mt-4 text-sm" ${open ? 'disabled' : ''}>${open ? 'Bewerbung läuft' : 'Jetzt bewerben'}</button></article>`; }).join('')}</div>`;
+      bind(w, { click: { apply: b => { openModal('career'); $(`#k-factions [data-id="${b.dataset.id}"]`)?.click(); } } });
+    } },
+    { id:'meine', icon:'📬', label:'Meine Bewerbungen', desc:'Status ansehen oder zurückziehen.', async render(w) {
+      const apps = await PortalAPI.getApplications(); w.innerHTML = heading('📬 Meine Bewerbungen');
+      if (!apps.length) { w.innerHTML += emptyBox('Noch keine Bewerbungen. Schauen Sie bei den <a class="font-semibold underline" href="#/karriere/stellen">offenen Stellen</a>.'); return; }
+      const cls = { offen: WARN, angenommen: OK, abgelehnt: BAD };
+      w.innerHTML += `<div class="space-y-3">${apps.map(a => { const f = FACTIONS.find(x => x.id === a.faction); return `<article class="rounded-xl border border-slate-200 p-4"><div class="flex flex-wrap items-center justify-between gap-2"><div><b class="text-navy-700">${f.icon} ${f.name}</b> ${badge(esc(a.status), cls[a.status] || '')}<p class="text-xs text-slate-500">${esc(a.appNo)} • ${fmtDate(a.createdAt)}</p></div>
+        ${a.status === 'offen' ? `<button data-act="withdraw" data-no="${a.appNo}" class="btn-secondary !px-3 !py-1.5 text-xs">Zurückziehen</button>` : ''}</div>
+        <p class="mt-2 line-clamp-2 text-sm text-slate-600">${esc(a.text)}</p></article>`; }).join('')}</div><p class="mt-3 text-xs text-slate-400">Über Entscheidungen werden Sie hier informiert. Aktuell entscheidet die Stadtverwaltung, später die jeweilige Fraktionsleitung.</p>`;
+      bind(w, { click: { withdraw: async b => { if (!confirm('Bewerbung zurückziehen?')) return; await PortalAPI.withdrawApplication(b.dataset.no); route(); } } });
+    } }
+  ];
+
+  /* =====================================================================
+     BEREICH: NEWS
+     ===================================================================== */
+  const TAB_NEWS = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'' },
+    { id:'meldungen', icon:'📰', label:'Meldungen', desc:'Neuigkeiten aus der Stadt und zur Map.', async render(w) {
+      w.innerHTML = heading('📰 Meldungen') + `<div class="space-y-4">${(await PortalAPI.getNews()).map(n => newsCard(n)).join('')}</div>`; } },
+    { id:'regeln', icon:'📜', label:'Stadtregeln', desc:'Das Wichtigste auf einen Blick.', render(w) {
+      w.innerHTML = heading('📜 Stadtregeln') + `<div class="space-y-3">${RULES.map(r => `<details class="rounded-xl border border-slate-200 p-4"><summary class="cursor-pointer font-semibold text-navy-700">${esc(r.t)}</summary><p class="mt-2 text-sm text-slate-600">${esc(r.d)}</p></details>`).join('')}</div>`; } },
+    { id:'verzeichnis', icon:'☎️', label:'Telefonverzeichnis', desc:'Notruf, Rathaus und Behörden.', render(w) {
+      const dir = [
+        ['🚓', 'Polizei – Notruf', '110', 'Rund um die Uhr (RP-Notruf)'], ['🚒', 'Feuerwehr & Rettungsdienst – Notruf', '112', 'Rund um die Uhr (RP-Notruf)'],
+        ['🏛️', 'Rathaus – Bürgerservice', '555-0100', 'Mo–Fr 08–16 Uhr'], ['🚗', 'KFZ-Zulassungsstelle', '555-0110', 'Online jederzeit, Telefon Mo–Fr 08–16 Uhr'],
+        ['🏢', 'Gewerbeamt', '555-0120', 'Mo–Fr 08–16 Uhr'], ['🧾', 'Ordnungsamt', '555-0130', 'Mo–Fr 08–18 Uhr'], ['🔧', 'Städtische Werkstatt / Pannenhilfe', '555-0140', 'Mo–Sa 07–19 Uhr']];
+      w.innerHTML = heading('☎️ Telefonverzeichnis', 'Wichtige Rufnummern der Stadt Saarbrücken (fiktiv). Betriebe finden Sie im Gewerberegister.') +
+        `<div class="grid gap-3 md:grid-cols-2">${dir.map(([i, n, p, t]) => `<div class="flex items-center gap-4 rounded-xl border border-slate-200 p-4"><div class="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-navy-50 text-2xl">${i}</div><div class="min-w-0"><b class="block text-navy-700">${n}</b><span class="font-mono text-lg font-bold">${p}</span><span class="block text-xs text-slate-500">${t}</span></div></div>`).join('')}</div>
+         <p class="mt-5 text-sm"><a href="#/gewerbe/register" class="font-semibold text-navy-600 underline">→ Zum Gewerberegister</a></p>`;
+    } },
+    { id:'ideen', icon:'💡', label:'Ideen-Box', desc:'Vorschläge einreichen und abstimmen.', async render(w) {
+      const ideas = await PortalAPI.getIdeas();
+      w.innerHTML = heading('💡 Ideen-Box', 'Was soll in Saarbrücken besser werden? Stimmen Sie für Vorschläge ab.') + `<div class="grid gap-6 lg:grid-cols-3"><div class="space-y-3 lg:col-span-2">
+        ${ideas.map(i => `<article class="flex gap-4 rounded-xl border border-slate-200 p-4"><button data-act="vote" data-id="${i.id}" class="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg border-2 ${i.voted ? 'border-accent-600 bg-accent-50 text-accent-700' : 'border-slate-200 text-slate-600 hover:border-navy-500'}" aria-label="Abstimmen"><span>▲</span><b>${i.votes}</b></button>
+          <div><h3 class="font-bold text-navy-700">${esc(i.title)} ${badge(esc(i.cat))}</h3><p class="text-sm text-slate-600">${esc(i.text)}</p><p class="text-xs text-slate-400">von ${esc(i.by)}</p></div></article>`).join('')}</div>
+        <aside><form data-submit="idea" class="space-y-3 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Idee einreichen</h3>
+          <input name="title" required maxlength="60" class="input" placeholder="Titel"><select name="cat" class="input"><option>Map</option><option>Events</option><option>Regeln</option><option>Portal</option></select><textarea name="text" required rows="4" maxlength="300" class="input" placeholder="Beschreiben Sie Ihre Idee"></textarea><button class="btn-primary w-full">Absenden</button></form></aside></div>`;
+      bind(w, { click: { vote: async b => { await PortalAPI.voteIdea(b.dataset.id); route(); } },
+        submit: { idea: async f => { const d = Object.fromEntries(new FormData(f)); await PortalAPI.addIdea({ title: d.title.trim(), cat: d.cat, text: d.text.trim() }); toast('Danke für Ihre Idee!', 'success'); route(); } } });
+    } }
+  ];
+
+  /* =====================================================================
+     ROUTER
+     ===================================================================== */
+  /* =====================================================================
+     BEREICH: MEIN KONTO (Charaktere & Einstellungen)
+     ===================================================================== */
+  const TAB_KONTO = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'', async render(w) {
+      const acc = acct();
+      const [chars, vs, bs, apps, lic, act] = await Promise.all([PortalAPI.getCharacters(), PortalAPI.getVehicles(), PortalAPI.getBusinesses(), PortalAPI.getApplications(), PortalAPI.getMyLicenses(), PortalAPI.getCitizen()]);
+      const quick = [['🧑‍🤝‍🧑', 'Charaktere verwalten', '#/konto/charaktere'], ['🚘', 'Meine Fahrzeuge', '#/kfz/meine'], ['🏢', 'Meine Gewerbe', '#/gewerbe/meine'], ['📬', 'Meine Bewerbungen', '#/karriere/meine'], ['🛠️', 'Meine Mängelmeldungen', '#/buerger/maengel'], ['⚙️', 'Kontoeinstellungen', '#/konto/einstellungen']];
+      if (isStaff()) quick.push(['🏛️', 'Behörden-Bereich', '#/behoerde/start']);
+      w.innerHTML = heading('📂 Mein Bereich', 'Ihre Charaktere und Unterlagen auf einen Blick') +
+        (Auth.status(acc) === 'pending' ? '<p class="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><b>⏳ Freischaltung ausstehend.</b> Die Stadtverwaltung prüft Ihr Konto. Danach können Sie Dienste nutzen.</p>' : Auth.status(acc) === 'rejected' ? '<p class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><b>Konto abgelehnt.</b> Bitte wenden Sie sich an die Stadtverwaltung.</p>' : '') +
+        `<div class="mb-5 flex flex-wrap gap-2">${badge('👤 ' + esc(acc.username))}${badge(isStaff() ? 'Verwaltung' : 'Bürger', isStaff() ? OK : '')}${badge('Mitglied seit ' + fmtDate(acc.createdAt))}</div>` +
+        (chars.length ? `<div class="grid gap-4 md:grid-cols-2">${chars.map(c => { const l = lic[c.id], on = act && act.id === c.id;
+          return `<div class="rounded-xl border ${on ? 'border-accent-600' : 'border-slate-200'} p-4">${miniCard(c, on)}
+            <div class="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><div class="rounded-lg bg-slate-50 p-2"><b class="block text-lg text-navy-700">${vs.filter(v => v.ownerCharId === c.id).length}</b>Fahrzeuge</div><div class="rounded-lg bg-slate-50 p-2"><b class="block text-lg text-navy-700">${bs.filter(b => b.ownerCharId === c.id).length}</b>Gewerbe</div><div class="rounded-lg bg-slate-50 p-2"><b class="block text-lg text-navy-700">${apps.filter(a => a.charId === c.id).length}</b>Bewerbungen</div></div>
+            <p class="mt-2 text-xs text-slate-600">🚦 Führerschein: ${l ? esc(l.classes.join(', ')) : 'keiner'}</p>
+            ${on ? '' : `<button data-act="activate" data-id="${c.id}" class="btn-secondary mt-3 w-full text-sm">Als aktiven Charakter wählen</button>`}</div>`; }).join('')}</div>`
+        : `<div class="rounded-xl bg-navy-50 p-6"><p class="font-semibold text-navy-700">Sie haben noch keinen Charakter.</p><p class="text-sm text-slate-600">Erstellen Sie Ihre Bürgerkarte, um Fahrzeuge und Gewerbe anzumelden.</p><button data-open="citizen" class="btn-primary mt-4">Charakter erstellen</button></div>`) +
+        `<h3 class="mb-3 mt-8 font-bold text-navy-700">Schnellzugriff</h3><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">${quick.map(([i, t, h]) => `<a href="${h}" class="rounded-xl border border-slate-200 p-4 transition hover:border-accent-600 hover:shadow-md"><span class="text-xl">${i}</span> <b class="text-navy-700">${t}</b></a>`).join('')}</div>`;
+      bind(w, { click: { activate: async b => { await PortalAPI.setActiveChar(b.dataset.id); renderAuthUI(); toast('Charakter gewechselt.', 'success'); route(); } } });
+    } },
+    { id:'charaktere', icon:'🧑‍🤝‍🧑', label:'Meine Charaktere', desc:'Bürgerkarten verwalten, Charakter wechseln, löschen.', async render(w) {
+      const [chars, act] = await Promise.all([PortalAPI.getCharacters(), PortalAPI.getCitizen()]);
+      w.innerHTML = heading('🧑‍🤝‍🧑 Meine Charaktere', `${chars.length} von ${CONFIG.MAX_CHARACTERS} Charakteren. Dienste (Fahrzeug, Gewerbe, Bewerbung) können Sie für jeden Charakter nutzen.`) +
+        `<div class="space-y-4">${chars.map(c => `<article class="grid gap-4 rounded-xl border ${act && act.id === c.id ? 'border-accent-600' : 'border-slate-200'} p-4 md:grid-cols-[20rem_1fr]">${miniCard(c, act && act.id === c.id)}
+          <div class="flex flex-wrap content-center gap-2">${act && act.id === c.id ? '' : `<button data-act="activate" data-id="${c.id}" class="btn-primary text-sm">Aktiv setzen</button>`}
+            <button data-act="card" data-id="${c.id}" class="btn-secondary text-sm">💾 Karte als Bild</button><button data-act="del" data-id="${c.id}" class="btn-secondary text-sm text-red-600">🗑️ Löschen</button></div></article>`).join('') || emptyBox('Noch kein Charakter vorhanden.')}</div>
+         <button data-open="citizen" class="btn-primary mt-5" ${chars.length >= CONFIG.MAX_CHARACTERS ? 'disabled' : ''}>➕ Neuen Charakter erstellen</button>`;
+      bind(w, { click: {
+        activate: async b => { await PortalAPI.setActiveChar(b.dataset.id); renderAuthUI(); toast('Charakter gewechselt.', 'success'); route(); },
+        card: b => downloadCard(chars.find(c => c.id === b.dataset.id)),
+        del: async b => { const c = chars.find(x => x.id === b.dataset.id);
+          if (!confirm(`Charakter „${fullNameOf(c)}“ wirklich löschen?\nFahrzeuge, Gewerbe, Führerschein und Bewerbungen dieses Charakters werden ebenfalls gelöscht.`)) return;
+          await PortalAPI.deleteCharacter(c.id); renderAuthUI(); toast('Charakter gelöscht.', 'success'); route(); } } });
+    } },
+    { id:'einstellungen', icon:'⚙️', label:'Kontoeinstellungen', desc:'Passwort ändern, Konto löschen, Demo zurücksetzen.', async render(w) {
+      const acc = acct();
+      w.innerHTML = heading('⚙️ Kontoeinstellungen') + `<dl class="mb-6 grid gap-4 rounded-xl bg-slate-50 p-5 sm:grid-cols-3">${kv('Benutzername', esc(acc.username))}${kv('Rolle', isStaff() ? 'Verwaltung' : 'Bürger')}${kv('Erstellt am', fmtDate(acc.createdAt))}</dl>
+        <div class="grid gap-6 md:grid-cols-2">
+          <form data-submit="pw" class="space-y-3 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Passwort ändern</h3>
+            <input name="old" type="password" required class="input" placeholder="Aktuelles Passwort" autocomplete="current-password"><input name="n1" type="password" required class="input" placeholder="Neues Passwort (min. 6 Zeichen)" autocomplete="new-password"><input name="n2" type="password" required class="input" placeholder="Neues Passwort wiederholen" autocomplete="new-password"><button class="btn-navy">Passwort speichern</button></form>
+          <form data-submit="delacc" class="space-y-3 rounded-xl border border-red-200 p-5"><h3 class="font-bold text-red-700">Konto löschen</h3><p class="text-sm text-slate-600">Löscht Ihr Konto samt aller Charaktere, Fahrzeuge, Gewerbe und Bewerbungen. Das kann nicht rückgängig gemacht werden.</p>
+            <input name="pw" type="password" required class="input" placeholder="Passwort zur Bestätigung" autocomplete="current-password"><button class="btn bg-red-600 text-white hover:bg-red-700">Konto endgültig löschen</button></form></div>
+        <div class="mt-6 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Demo-Daten</h3><p class="text-sm text-slate-600">Löscht alle Konten und Daten in diesem Browser und stellt die Start-Daten wieder her.</p><button data-act="reset" class="btn-secondary mt-3 text-red-600">Alles zurücksetzen</button></div>`;
+      bind(w, { click: { reset: () => window.resetDemo() }, submit: {
+        pw: async f => { const d = Object.fromEntries(new FormData(f)); if (d.n1 !== d.n2) return err('Die neuen Passwörter stimmen nicht überein.');
+          try { await PortalAPI.changePassword(d.old, d.n1); f.reset(); toast('Passwort geändert.', 'success'); } catch (ex) { err(ex.message); } },
+        delacc: async f => { if (!confirm('Konto wirklich endgültig löschen?')) return;
+          try { await PortalAPI.deleteAccount(new FormData(f).get('pw')); renderAuthUI(); location.hash = ''; route(); toast('Konto gelöscht.', 'success'); } catch (ex) { err(ex.message); } } } });
+    } }
+  ];
+
+  /* =====================================================================
+     BEREICH: BEHÖRDE (nur Rolle „verwaltung“) – Polizei etc. folgt später separat
+     ===================================================================== */
+  const REPORT_STATES = ['Eingegangen', 'In Bearbeitung', 'Erledigt'];
+  const TAB_BEHOERDE = [
+    { id:'start', icon:'🏠', label:'Übersicht', desc:'' },
+    { id:'konten', icon:'✅', label:'Kontoanträge', desc:'Neue Konten freischalten oder ablehnen.', async render(w) {
+      const list = (await PortalAPI.getAllAccounts()).filter(a => a.role !== 'verwaltung').sort((a, b) => (a.status === 'pending' ? 0 : 1) - (b.status === 'pending' ? 0 : 1) || b.createdAt.localeCompare(a.createdAt));
+      const cls = { pending: WARN, approved: OK, rejected: BAD }, lbl = { pending: 'Wartet auf Freischaltung', approved: 'Freigeschaltet', rejected: 'Abgelehnt' };
+      w.innerHTML = heading('✅ Kontoanträge', `${list.filter(a => a.status === 'pending').length} offen • ${list.length} Konten insgesamt`);
+      listWithSearch(w, { placeholder:'Benutzername suchen …', items:list, empty:'Keine Konten vorhanden.', text: a => `${a.username} ${lbl[a.status]}`,
+        card: a => `<article class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4"><div><b class="text-navy-700">${esc(a.username)}</b> ${badge(lbl[a.status], cls[a.status])}
+            <p class="text-xs text-slate-500">Registriert am ${fmtDate(a.createdAt)}${a.decidedBy ? ' • entschieden von ' + esc(a.decidedBy) : ''}</p></div>
+          <div class="flex gap-2">${a.status !== 'approved' ? `<button data-act="acc" data-id="${esc(a.id)}" data-s="approved" class="btn-primary !py-1.5 text-sm">Freischalten</button>` : ''}${a.status !== 'rejected' ? `<button data-act="acc" data-id="${esc(a.id)}" data-s="rejected" class="btn-secondary !py-1.5 text-sm text-red-600">Ablehnen</button>` : ''}</div></article>` });
+      bind(w, { click: { acc: async b => { await PortalAPI.setAccountStatus(b.dataset.id, b.dataset.s); toast(b.dataset.s === 'approved' ? 'Konto freigeschaltet.' : 'Konto abgelehnt.', 'success'); renderAuthUI(); route(); } } });
+    } },
+    { id:'gewerbe', icon:'🏢', label:'Gewerbeaufsicht', desc:'Gewerbe prüfen, Hinweise erteilen, sperren.', async render(w) {
+      const list = (await PortalAPI.getAllBusinesses()).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      w.innerHTML = heading('🏢 Gewerbeaufsicht', `${list.length} Gewerbe im Stadtregister (inkl. nicht gelistete)`);
+      listWithSearch(w, { placeholder:'Name, Gewerbe-Nr., Inhaber, Telefon …', items:list, empty:'Keine Gewerbe gefunden.',
+        text: b => `${b.name} ${b.regNo} ${b.owner} ${b.phone} ${b.plotName}`,
+        card: b => `<article class="rounded-xl border border-slate-200 p-4"><div class="flex flex-wrap items-start justify-between gap-2"><div><b class="text-navy-700">${esc(b.name)}</b> ${b.status === 'gesperrt' ? badge('Gesperrt', BAD) : badge('Aktiv', OK)}${b.listed === false ? ' ' + badge('nicht im Register') : ''}
+            <p class="text-sm text-slate-500">${esc(b.regNo)} • Inhaber: ${esc(b.owner)} • 📞 ${esc(b.phone || '–')} • 📍 ${esc(b.plotName)}</p></div>
+            <div class="flex gap-2"><button data-act="toggle" data-reg="${esc(b.regNo)}" class="btn-secondary !py-1.5 text-sm">${b.status === 'gesperrt' ? 'Entsperren' : 'Sperren'}</button><button data-act="remove" data-reg="${esc(b.regNo)}" class="btn-secondary !py-1.5 text-sm text-red-600">Von Amts wegen abmelden</button></div></div>
+          ${(b.notes || []).length ? `<ul class="mt-3 list-disc rounded-lg bg-amber-50 p-3 pl-7 text-sm text-amber-800">${b.notes.map(n => `<li>${esc(n.text)} <span class="text-xs text-amber-600">(${esc(n.by)}, ${fmtDate(n.at)})</span></li>`).join('')}</ul>` : ''}
+          <form data-submit="note" class="mt-3 flex gap-2"><input type="hidden" name="regNo" value="${esc(b.regNo)}"><input name="text" required maxlength="200" class="input text-sm" placeholder="Verwarnung / Hinweis an den Inhaber …"><button class="btn-navy whitespace-nowrap text-sm">Hinweis erteilen</button></form></article>` });
+      bind(w, { click: {
+        toggle: async b => { const x = list.find(y => y.regNo === b.dataset.reg), n = x.status === 'gesperrt' ? 'aktiv' : 'gesperrt'; await PortalAPI.setBusinessStatus(x.regNo, n); toast(n === 'gesperrt' ? 'Gewerbe gesperrt.' : 'Gewerbe entsperrt.', 'success'); route(); },
+        remove: async b => { if (!confirm('Gewerbe von Amts wegen abmelden? Der Standort wird frei, Stellenanzeigen werden gelöscht.')) return; await PortalAPI.removeBusiness(b.dataset.reg); toast('Gewerbe abgemeldet.', 'success'); route(); } },
+        submit: { note: async f => { const d = Object.fromEntries(new FormData(f)); await PortalAPI.addBusinessNote(d.regNo, d.text.trim()); toast('Hinweis erteilt – der Inhaber sieht ihn in seinem Bereich.', 'success'); route(); } } });
+    } },
+    { id:'buerger', icon:'🪪', label:'Bürgerregister', desc:'Alle Charaktere mit Konto, Führerschein, Fahrzeugen.', async render(w) {
+      const [chars, accs, vs, bs, lic] = await Promise.all([PortalAPI.getAllCharacters(), PortalAPI.getAllAccounts(), PortalAPI.getAllVehicles(), PortalAPI.getAllBusinesses(), PortalAPI.getAllLicenses()]);
+      const accName = Object.fromEntries(accs.map(a => [a.id, a.username]));
+      w.innerHTML = heading('🪪 Bürgerregister', `${chars.length} Charaktere von ${accs.length} Konten`);
+      listWithSearch(w, { placeholder:'Name, Bürger-ID, Konto, Bezirk …', items:chars, empty:'Keine Bürger gefunden.',
+        text: c => `${c.first} ${c.last} ${c.citizenId} ${c.username} ${accName[c.accountId] || ''} ${c.district}`,
+        card: c => { const mv = vs.filter(v => v.ownerCharId === c.id), mb = bs.filter(b => b.ownerCharId === c.id), l = lic[c.id];
+          return `<article class="grid gap-4 rounded-xl border border-slate-200 p-4 md:grid-cols-[20rem_1fr]">${miniCard(c)}<dl class="grid content-start gap-3 text-sm sm:grid-cols-2">${kv('Konto', esc(accName[c.accountId] || '–'))}${kv('Spielername', esc(c.username))}${kv('Führerschein', l ? esc(l.classes.join(', ')) + ' (' + esc(l.no) + ')' : 'keiner')}${kv('Ausgestellt', fmtDate(c.createdAt))}${kv('Fahrzeuge', mv.length ? mv.map(v => esc(v.plate)).join(', ') : '–')}${kv('Gewerbe', mb.length ? mb.map(b => esc(b.name)).join(', ') : '–')}</dl></article>`; } });
+    } },
+    { id:'fahrzeuge', icon:'🚘', label:'Fahrzeugregister', desc:'Alle Fahrzeuge, Fahndung, Zwangsabmeldung.', async render(w) {
+      const list = await PortalAPI.getAllVehicles();
+      w.innerHTML = heading('🚘 Fahrzeugregister', `${list.length} zugelassene Fahrzeuge`);
+      listWithSearch(w, { placeholder:'Kennzeichen, Modell, Halter, Bürger-ID …', items:list, empty:'Keine Fahrzeuge gefunden.',
+        text: v => `${v.plate} ${v.model} ${v.owner} ${v.citizenId || ''} ${v.type}`,
+        card: v => `<article class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4"><div>${plateHTML(v.plate)} ${v.status === 'gestohlen' ? badge('Fahndung ' + esc(v.caseNo || ''), BAD) : ''}
+            <p class="mt-1 text-sm"><b class="text-navy-700">${esc(v.model)}</b> <span class="text-slate-500">• ${esc(v.type)}${v.color ? ' • ' + esc(v.color) : ''}</span></p><p class="text-xs text-slate-500">Halter: ${esc(v.owner)}${v.citizenId ? ' (' + esc(v.citizenId) + ')' : ''}</p></div>
+          <div class="flex gap-2"><button data-act="fahndung" data-id="${esc(v.id)}" class="btn-secondary !py-1.5 text-sm">${v.status === 'gestohlen' ? 'Fahndung aufheben' : 'Zur Fahndung ausschreiben'}</button><button data-act="abmelden" data-id="${esc(v.id)}" class="btn-secondary !py-1.5 text-sm text-red-600">Zwangsabmeldung</button></div></article>` });
+      bind(w, { click: {
+        fahndung: async b => { const v = list.find(x => x.id === b.dataset.id); await PortalAPI.updateVehicle(v.id, v.status === 'gestohlen' ? { status:'ok', caseNo:null, lastSeen:null } : { status:'gestohlen', caseNo:'AZ-' + rid(5), lastSeen:'Behörde' }); toast('Fahndungsstatus geändert.', 'success'); route(); },
+        abmelden: async b => { if (!confirm('Fahrzeug von Amts wegen abmelden? Das Kennzeichen wird frei.')) return; await PortalAPI.removeVehicle(b.dataset.id); toast('Fahrzeug abgemeldet.', 'success'); route(); } } });
+    } },
+    { id:'maengel', icon:'🛠️', label:'Mängelmeldungen', desc:'Meldungen der Bürger bearbeiten.', async render(w) {
+      const list = await PortalAPI.getAllReports();
+      w.innerHTML = heading('🛠️ Mängelmeldungen', `${list.filter(r => r.status !== 'Erledigt').length} offen von ${list.length}`);
+      listWithSearch(w, { placeholder:'Art, Ort, Meldungs-Nr., Melder …', items:list, empty:'Keine Meldungen vorhanden.',
+        text: r => `${r.cat} ${r.street} ${r.no} ${r.by} ${r.text} ${r.status}`,
+        card: r => `<article class="rounded-xl border border-slate-200 p-4"><div class="flex flex-wrap items-start justify-between gap-3"><div><b class="text-navy-700">${esc(r.cat)}</b> – ${esc(r.street)}<p class="mt-1 text-sm text-slate-600">${esc(r.text)}</p><p class="text-xs text-slate-400">${esc(r.no)} • ${esc(r.by)} • ${fmtDT(r.createdAt)}${r.handledBy ? ' • bearbeitet von ' + esc(r.handledBy) : ''}</p></div>
+          <div class="flex flex-wrap gap-1">${REPORT_STATES.map(s => `<button data-act="rs" data-no="${esc(r.no)}" data-s="${s}" class="rounded-lg px-2.5 py-1 text-xs font-semibold ${r.status === s ? 'bg-navy-700 text-white' : 'border border-slate-300 text-slate-600 hover:bg-slate-50'}">${s}</button>`).join('')}</div></div></article>` });
+      bind(w, { click: { rs: async b => { await PortalAPI.setReportStatus(b.dataset.no, b.dataset.s); route(); } } });
+    } },
+    { id:'bewerbungen', icon:'📬', label:'Bewerbungen', desc:'Bewerbungen sichten und entscheiden.', async render(w) {
+      const list = (await PortalAPI.getAllApplications()).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), cls = { offen: WARN, angenommen: OK, abgelehnt: BAD };
+      w.innerHTML = heading('📬 Bewerbungen', 'Vorläufig entscheidet die Verwaltung über alle Fraktionen. Polizei, Feuerwehr & Co. bekommen später eigene Bereiche.');
+      listWithSearch(w, { placeholder:'Name, Discord, Fraktion, Bewerbungs-Nr. …', items:list, empty:'Keine Bewerbungen eingegangen.',
+        text: a => `${a.name} ${a.discord} ${a.appNo} ${a.faction} ${a.status}`,
+        card: a => { const f = FACTIONS.find(x => x.id === a.faction);
+          return `<article class="rounded-xl border border-slate-200 p-4"><div class="flex flex-wrap items-start justify-between gap-3"><div><b class="text-navy-700">${f ? f.icon + ' ' + f.name : esc(a.faction)}</b> ${badge(esc(a.status), cls[a.status] || '')}
+            <p class="text-sm text-slate-600">${esc(a.name)} • Discord ${esc(a.discord)} • ${a.age} J. • ${esc(a.experience)}</p><p class="text-xs text-slate-400">${esc(a.appNo)} • ${fmtDT(a.createdAt)}${a.decidedBy ? ' • entschieden von ' + esc(a.decidedBy) : ''}</p></div>
+            <div class="flex gap-2">${a.status === 'offen' ? `<button data-act="ap" data-no="${esc(a.appNo)}" data-s="angenommen" class="btn-primary !py-1.5 text-sm">Annehmen</button><button data-act="ap" data-no="${esc(a.appNo)}" data-s="abgelehnt" class="btn-secondary !py-1.5 text-sm text-red-600">Ablehnen</button>` : `<button data-act="ap" data-no="${esc(a.appNo)}" data-s="offen" class="btn-secondary !py-1.5 text-sm">Zurück auf „offen“</button>`}</div></div>
+            <details class="mt-2"><summary class="cursor-pointer text-sm font-semibold text-navy-600">Bewerbungstext</summary><p class="mt-2 whitespace-pre-line text-sm text-slate-600">${esc(a.text)}</p></details></article>`; } });
+      bind(w, { click: { ap: async b => { await PortalAPI.setApplicationStatus(b.dataset.no, b.dataset.s); toast('Entscheidung gespeichert.', 'success'); route(); } } });
+    } },
+    { id:'news', icon:'📰', label:'News verwalten', desc:'Meldungen für die Startseite veröffentlichen.', async render(w) {
+      const list = await PortalAPI.getNews();
+      w.innerHTML = heading('📰 News verwalten', 'Veröffentlichte Meldungen erscheinen sofort auf der Startseite.') + `<div class="grid gap-6 lg:grid-cols-3"><div class="space-y-3 lg:col-span-2">
+        ${list.map(n => `<div class="flex items-start justify-between gap-3">${'<div class="flex-1">' + newsCard(n, true) + '</div>'}${n.custom ? `<button data-act="del" data-id="${esc(n.id)}" class="text-xs text-red-600 hover:underline">Löschen</button>` : '<span class="text-xs text-slate-400">System</span>'}</div>`).join('')}</div>
+        <aside><form data-submit="add" class="space-y-3 rounded-xl border border-slate-200 p-5"><h3 class="font-bold text-navy-700">Neue Meldung</h3><input name="title" required maxlength="80" class="input" placeholder="Titel">
+          <select name="tag" class="input"><option>Service</option><option>Map</option><option>Regeln</option><option>Event</option><option>Wichtig</option></select><textarea name="text" required rows="4" maxlength="400" class="input" placeholder="Text"></textarea><button class="btn-primary w-full">Veröffentlichen</button></form></aside></div>`;
+      bind(w, { click: { del: async b => { await PortalAPI.removeNews(b.dataset.id); renderNews(); route(); } },
+        submit: { add: async f => { const d = Object.fromEntries(new FormData(f)); await PortalAPI.addNews({ title: d.title.trim(), tag: d.tag, text: d.text.trim() }); renderNews(); toast('Meldung veröffentlicht.', 'success'); route(); } } });
+    } }
+  ];
+
+  const AREAS_EXTRA = {
+    konto:    { icon:'📂', title:'Mein Bereich', lead:'Ihr Konto, Ihre Charaktere und Unterlagen.', tabs: TAB_KONTO, private: true, customStart: true, status: async () => [] },
+    behoerde: { icon:'🏛️', title:'Behörden-Bereich', lead:'Verwaltung: Kontoanträge, Gewerbeaufsicht, Register, Mängelmeldungen und Bewerbungen.', tabs: TAB_BEHOERDE, private: true, staff: true,
+      status: async () => { if (!isStaff()) return []; const [c, v, b, r, a] = await Promise.all([PortalAPI.getAllCharacters(), PortalAPI.getAllVehicles(), PortalAPI.getAllBusinesses(), PortalAPI.getAllReports(), PortalAPI.getAllApplications()]);
+        return [badge(c.length + ' Bürger', OK), badge(v.length + ' Fahrzeuge', OK), badge(b.length + ' Gewerbe', OK), badge(r.filter(x => x.status !== 'Erledigt').length + ' offene Mängelmeldungen', WARN), badge(a.filter(x => x.status === 'offen').length + ' offene Bewerbungen', WARN)]; } }
+  };
+
+  const AREAS = {
+    buerger:  { icon:'🪪', title:'Bürgerservice & Ausweise', lead:'Ausweis, Führerschein, Ummeldung und Mängelmelder – alles online.', tabs: TAB_BUERGER,
+      status: async () => { const [c, l] = await Promise.all([PortalAPI.getCitizen(), PortalAPI.getLicense()]); return [badge(c ? 'Bürgerkarte ✔' : 'Keine Bürgerkarte', c ? OK : WARN), badge(l ? 'Führerschein ' + l.classes.join('/') : 'Kein Führerschein', l ? OK : WARN)]; } },
+    kfz:      { icon:'🚗', title:'KFZ-Zulassungsstelle', lead:'Zulassen, ummelden, abmelden – ohne Wartezeit.', tabs: TAB_KFZ,
+      status: async () => [badge((await PortalAPI.getVehicles()).length + ' Fahrzeug(e) angemeldet', OK)] },
+    gewerbe:  { icon:'🏢', title:'Gewerbe- & Firmenportal', lead:'Gründen, verwalten und Mitarbeiter finden.', tabs: TAB_GEWERBE,
+      status: async () => [badge((await PortalAPI.getBusinesses()).length + ' Gewerbe angemeldet', OK)] },
+    karriere: { icon:'💼', title:'Karriere & Bewerbungen', lead:'Bewerben Sie sich bei Polizei, Feuerwehr, Rettungsdienst und mehr.', tabs: TAB_KARRIERE,
+      status: async () => [badge((await PortalAPI.getApplications()).filter(a => a.status === 'offen').length + ' offene Bewerbung(en)', WARN)] },
+    news:     { icon:'🗺️', title:'Stadt-Update & News', lead:'Neuigkeiten, Regeln und Ihre Ideen.', tabs: TAB_NEWS, public: true, status: async () => [] }
+  };
+  Object.assign(AREAS, AREAS_EXTRA);
+
+  // Übersichts-Tab automatisch aus den anderen Tabs erzeugen
+  Object.entries(AREAS).forEach(([key, a]) => {
+    if (a.customStart) return;
+    a.tabs[0].render = async w => {
+      const chips = acct() ? await a.status() : [];
+      w.innerHTML = heading(`${a.icon} ${a.title}`, a.lead) + (chips.length ? `<div class="mb-5 flex flex-wrap gap-2">${chips.join('')}</div>` : '') +
+        `<div class="grid gap-4 sm:grid-cols-2">${a.tabs.slice(1).map(t => `<a href="#/${key}/${t.id}" class="group rounded-xl border border-slate-200 p-5 transition hover:border-accent-600 hover:shadow-md"><div class="text-2xl">${t.icon}</div><h3 class="mt-2 font-bold text-navy-700">${t.label}</h3><p class="text-sm text-slate-500">${t.desc}</p><span class="mt-2 inline-block text-sm font-semibold text-accent-700">Öffnen →</span></a>`).join('')}</div>`;
+    };
+  });
+
+  const view = $('#service-view'), mainEl = $('main'), content = $('#sv-content');
+  let cur = { area: null, tab: null };
+
+  function route() {
+    const m = location.hash.match(/^#\/([a-z]+)(?:\/([a-z]+))?/);
+    if (!m || !AREAS[m[1]]) { view.classList.add('hidden'); mainEl.classList.remove('hidden'); document.title = 'Bürgerportal Saarbrücken – Ihr Online-Rathaus'; return; }
+    const a = AREAS[m[1]], t = a.tabs.find(x => x.id === m[2]) || a.tabs[0];
+    cur = { area: m[1], tab: t.id };
+    if (!overlay.classList.contains('hidden')) closeModal();
+    mainEl.classList.add('hidden'); view.classList.remove('hidden');
+    $('#sv-title').textContent = `${a.icon} ${a.title}`; $('#sv-lead').textContent = a.lead; $('#sv-crumb').textContent = a.title;
+    document.title = `${t.label} – ${a.title} – Bürgerportal Saarbrücken`;
+    $('#sv-nav').innerHTML = a.tabs.map(x => `<a href="#/${m[1]}/${x.id}" class="whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-semibold transition ${x.id === t.id ? 'bg-navy-700 text-white' : 'text-slate-700 hover:bg-slate-100'}">${x.icon} ${x.label}</a>`).join('');
+    $('#sv-areas').innerHTML = Object.entries(AREAS).filter(([k, x]) => k !== m[1] && (!x.staff || isStaff())).map(([k, x]) => `<a href="#/${k}/start" class="block rounded-lg px-2 py-1.5 text-slate-700 hover:bg-slate-100">${x.icon} ${x.title}</a>`).join('');
+    renderTab(a, t);
+  }
+  async function renderTab(a, t) {
+    const wrap = document.createElement('div'); content.replaceChildren(wrap);
+    // Zugriffsschutz: Behörden-Bereich nur für Verwaltung, private Bereiche/Tabs nur mit Konto
+    const open = a.public || t.public || (t.id === 'start' && !a.private);
+    if (a.staff && !isStaff()) { wrap.innerHTML = acct() ? noAccess : loginPrompt; return; }
+    if (!open && !acct()) { wrap.innerHTML = loginPrompt; return; }
+    try { await t.render(wrap); } catch (ex) { wrap.innerHTML = `<p class="text-red-600">Fehler beim Laden: ${esc(ex.message)}</p>`; }
+  }
+
+  // Kategorie-Kacheln auf der Startseite öffnen jetzt die Service-Seiten (statt Modals)
+  const ROUTE_OF = { citizen:'buerger', vehicle:'kfz', business:'gewerbe', career:'karriere', news:'news', dashboard:'konto' };
+  $('#categories').addEventListener('click', e => {
+    const t = e.target.closest('[data-open]'); const r = t && ROUTE_OF[t.dataset.open];
+    if (r) { e.preventDefault(); e.stopPropagation(); location.hash = `#/${r}/start`; }
+  }, true);
+
+  // Nach dem Schließen eines Modals den aktuellen Tab neu laden (zeigt neue Daten)
+  // (nur beim Übergang offen → geschlossen, sonst Endlosschleife durch Klassen-Änderungen)
+  let wasOpen = false;
+  new MutationObserver(() => {
+    const open = !overlay.classList.contains('hidden');
+    if (wasOpen && !open && !view.classList.contains('hidden')) route();
+    wasOpen = open;
+  }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+
+  window.refreshView = route;                       // wird von Login/Logout/Charakter-Wechsel genutzt
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
+<!-- Supabase-Anbindung: leer lassen (js/config.js) = Demo-Modus mit localStorage -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="js/config.js"></script>
+<script src="js/sb-common.js"></script>
+<script src="js/backend-portal.js"></script>
+</body>
+</html>
